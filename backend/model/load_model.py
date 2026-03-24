@@ -12,16 +12,33 @@ def load_all_models():
         file_path = os.path.join(model_dir, file)
 
        
-        if file.endswith(".json"):
-            name = file.replace(".json", "")
+        dataset = file.lower().split("_")[-1].replace(".pkl", "").replace(".json", "")
+
+        # ----------- KMEANS -----------
+        if "kmeans" in file.lower():
+            kmeans = joblib.load(file_path)
+            print(f"{file} → {type(kmeans)}")
+            models[f"kmeans_{dataset}"] = kmeans
+
+        # ----------- SCALER -----------
+        elif "scaler" in file.lower():
+            scaler = joblib.load(file_path)
+            print(f"{file} → {type(scaler)}")
+            models[f"scaler_{dataset}"] = scaler
+
+        # ----------- XGBOOST JSON -----------
+        elif file.endswith(".json"):
             model = xgb.Booster()
             model.load_model(file_path)
-            models[name] = model
+            print(f"{file} → Booster loaded")
+            models[f"model_{dataset}"] = model
 
-        
+        # ----------- PKL MODEL -----------
         elif file.endswith(".pkl"):
-            name = file.replace(".pkl", "")
             obj = joblib.load(file_path)
-            models[name] = obj
+            print(f"{file} → {type(obj)}")
+
+            if "scaler" not in file.lower():
+                models[f"model_{dataset}"] = obj
 
     return models

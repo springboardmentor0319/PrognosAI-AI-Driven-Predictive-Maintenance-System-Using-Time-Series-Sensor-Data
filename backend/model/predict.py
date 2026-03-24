@@ -22,9 +22,42 @@ def predict_rul(models, dataset_type, input_data):
 
     print("Before scaling:", X)
 
+    
+
     try:
-        X_scaled = scaler.transform(X)
+        
+        if dataset_type == "fd004" and isinstance(scaler, dict):
+            print("Using condition-based scaling for FD004")
+
+            kmeans = models.get("kmeans_fd004")
+
+            if kmeans is None:
+                print("KMeans model missing, skipping scaling")
+                X_scaled = X
+            else:
+                settings = np.array(input_data[:3]).reshape(1, -1)
+
+                cond = kmeans.predict(settings)[0]
+                print("Predicted condition:", cond)
+
+                if cond in scaler:
+                    selected_scaler = scaler[cond]
+                    X_scaled = selected_scaler.transform(X)
+                else:
+                    print("Condition not found, skipping scaling")
+                    X_scaled = X
+
+     
+        elif hasattr(scaler, "transform"):
+            X_scaled = scaler.transform(X)
+
+        
+        else:
+            print("Invalid scaler, skipping scaling")
+            X_scaled = X
+
         print("After scaling:", X_scaled)
+
     except Exception as e:
         print("Scaler ERROR:", e)
         return {"error": f"Scaler error: {str(e)}"}
