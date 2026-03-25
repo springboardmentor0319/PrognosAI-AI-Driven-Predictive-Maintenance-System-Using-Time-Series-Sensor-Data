@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/Aspire/Engine_Rul -maxdepth 2 -type f \\\\\\(-name *.md -o -name *.txt -o -name *.yml -o -name *.yaml -o -name *.json -o -name *.sql -o -name *.env* -o -name requirements* \\\\\\))",
+      "Bash(ls -la \"d:\\\\Aspire\\\\Engine_Rul\\\\scripts\"\" 2>/dev/null || ls -la \"d:/Aspire/Engine_Rul/scripts/ \")",
+      "Bash(find /d/Aspire/Engine_Rul -type f -exec ls -lh {})",
+      "Read(//d/Aspire/Engine_Rul/**)",
+      "Bash(du -sh /d/Aspire/Engine_Rul/*)"
+    ]
+  }
+}
