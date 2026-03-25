@@ -1,0 +1,26 @@
+# Python artifacts
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Training data — large CSVs not needed at inference time (~44 MB)
+scripts/data/
+
+# Git
+.git/
+.gitignore
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Env files — never bake secrets into an image layer
+.env
+scripts/.env
+scripts/.env.*
+
+# Local dev artifacts
+*.log
