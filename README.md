@@ -1,90 +1,126 @@
-# PrognosAI — Predictive Maintenance System
+# PrognosAI — AI-Driven Predictive Maintenance System
 
-AI-driven Remaining Useful Life (RUL) prediction for turbofan engines, built on the NASA C-MAPSS dataset. Predicts how many cycles an engine has left before failure.
+Predicts the **Remaining Useful Life (RUL)** of turbofan engines using machine learning on the NASA C-MAPSS dataset. The system tells you how many operational cycles an engine has left before failure.
 
-**Stack:** XGBoost · FastAPI · PostgreSQL · Grafana · Docker
-
----
-
-## What You Get
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| FastAPI | `http://localhost:8100/docs` | Interactive API (make predictions) |
-| Grafana | `http://localhost:3100` | Live dashboards (fleet health, accuracy) |
-
-3 pre-built Grafana dashboards:
-- **Fleet Overview** — health status of all engines
-- **Engine Deep Dive** — per-engine RUL trend + sensor data
-- **Model Performance** — RMSE, MAE, NASA Score accuracy metrics
+**Stack:** Python · XGBoost · FastAPI · PostgreSQL · Grafana
 
 ---
 
-## Requirements
+## Prerequisites
 
-Just one thing:
+Make sure the following are installed on your machine:
 
-- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — install and make sure it's running
-
-That's it. No Python, no PostgreSQL, no Grafana installation needed.
+- **Python 3.10+** — [python.org](https://www.python.org/downloads/)
+- **PostgreSQL 14+** — [postgresql.org](https://www.postgresql.org/download/)
+- **Grafana** — [grafana.com/get](https://grafana.com/grafana/download)
 
 ---
 
-## Quick Start
+## 1. Clone the Repository
 
-### 1. Clone the repo
 ```bash
 git clone https://github.com/springboardmentor0319/PrognosAI-AI-Driven-Predictive-Maintenance-System-Using-Time-Series-Sensor-Data.git
 cd PrognosAI-AI-Driven-Predictive-Maintenance-System-Using-Time-Series-Sensor-Data
 ```
 
-### 2. Start everything
+---
+
+## 2. Create a Virtual Environment
+
 ```bash
-docker compose up
-```
+python -m venv venv
 
-Wait ~30 seconds for all services to start. You'll see:
-```
-rul_api       | ==> Starting uvicorn...
-rul_grafana   | HTTP Server Listen on :3000
-rul_grafana_init | Grafana provisioning complete.
-```
+# Windows
+venv\Scripts\activate
 
-### 3. Open in your browser
-- API → **http://localhost:8100/docs**
-- Grafana → **http://localhost:3100** (login: `admin` / `admin`)
+# macOS / Linux
+source venv/bin/activate
+```
 
 ---
 
-## Populate the Dashboards
+## 3. Install Dependencies
 
-The dashboards need prediction data to display charts. Run this once after startup:
+```bash
+pip install -r requirements.txt
+```
 
-> **Requires Python** with dependencies installed (only needed for this step)
+---
+
+## 4. Set Up the Database
+
+**Create the database in PostgreSQL:**
+
+```sql
+CREATE DATABASE prognosai;
+```
+
+**Apply the schema:**
+
+```bash
+psql -U postgres -d prognosai -f scripts/schema.sql
+```
+
+---
+
+## 5. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set your values:
+
+```
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=prognosai
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
+```
+
+---
+
+## 6. Train the Models
+
+The pre-trained models are included in `scripts/models/`. Skip this step unless you want to retrain.
 
 ```bash
 cd scripts
 
-# Install dependencies
-pip install -r ../requirements.txt
+# Train all 4 subsets
+python train.py
 
-# Send test predictions for all 4 engine datasets
-python bulk_predict.py --subset 1 --with-ground-truth
-python bulk_predict.py --subset 2 --with-ground-truth
-python bulk_predict.py --subset 3 --with-ground-truth
-python bulk_predict.py --subset 4 --with-ground-truth
+# Or train a specific subset
+python train.py --subset 1
 ```
 
-Refresh Grafana — all 3 dashboards will now have live data.
+Training output shows RMSE, MAE, R², and NASA Score for each subset.
 
 ---
 
-## Make a Prediction (API)
-
-Open **http://localhost:8100/docs** and try the `/predict` endpoint, or use curl:
+## 7. Start the API
 
 ```bash
-curl -X POST http://localhost:8100/predict \
+cd scripts
+uvicorn app:app --reload --port 8000
+```
+
+API is now running at **http://localhost:8000**
+
+- Interactive docs → **http://localhost:8000/docs**
+- Health check → **http://localhost:8000/health**
+
+---
+
+## 8. Make a Prediction
+
+Use the interactive docs at `/docs` or call the API directly:
+
+```bash
+curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d '{
     "subset": 1, "engine_id": 1, "cycle": 150,
@@ -95,7 +131,7 @@ curl -X POST http://localhost:8100/predict \
   }'
 ```
 
-Response:
+**Response:**
 ```json
 {
   "engine_id": 1,
@@ -108,73 +144,77 @@ Response:
 
 ---
 
-## Stopping & Restarting
+## 9. Set Up Grafana
+
+1. Open Grafana at **http://localhost:3000** (default login: `admin` / `admin`)
+2. Add a PostgreSQL datasource:
+   - Go to **Connections → Data Sources → Add new**
+   - Select **PostgreSQL**
+   - Fill in your DB credentials (host, database, user, password)
+   - Click **Save & Test**
+3. Import the dashboards:
+   - Go to **Dashboards → Import**
+   - Upload each file from `grafana_dashboard/`:
+     - `dashboard_1_fleet_overview.json`
+     - `dashboard_2_engine_detail.json`
+     - `dashboard_3_model_performance.json`
+   - Select the PostgreSQL datasource when prompted
+
+---
+
+## 10. Populate the Dashboards
+
+Send test predictions to fill the Grafana charts:
 
 ```bash
-# Stop (keeps all data)
-docker compose down
-
-# Start again (data is preserved)
-docker compose up
-
-# Full reset (wipes database)
-docker compose down -v
-docker compose up
+cd scripts
+python bulk_predict.py --subset 1 --with-ground-truth
+python bulk_predict.py --subset 2 --with-ground-truth
+python bulk_predict.py --subset 3 --with-ground-truth
+python bulk_predict.py --subset 4 --with-ground-truth
 ```
+
+Refresh Grafana — all 3 dashboards will now have live data.
 
 ---
 
 ## Project Structure
 
 ```
-├── docker/                  # Container startup scripts
-├── grafana_dashboard/       # Pre-built Grafana dashboards
+├── grafana_dashboard/       # Grafana dashboard JSON files
 ├── scripts/
 │   ├── app.py               # FastAPI service
-│   ├── train.py             # Model training (XGBoost)
-│   ├── predict.py           # Batch/single prediction CLI
-│   ├── bulk_predict.py      # Load test data into dashboards
-│   ├── config.py            # Shared config & feature engineering
+│   ├── train.py             # Model training
+│   ├── predict.py           # CLI prediction tool
+│   ├── bulk_predict.py      # Batch prediction for dashboard data
+│   ├── config.py            # Shared config and feature engineering
 │   ├── schema.sql           # PostgreSQL schema
-│   ├── models/              # Trained model artifacts (4 subsets)
+│   ├── models/              # Trained model artifacts
 │   └── data/                # NASA C-MAPSS dataset
-├── docker-compose.yml
-├── Dockerfile
-├── Dockerfile.grafana-init
-└── requirements.txt
+├── requirements.txt
+└── .env.example
 ```
 
 ---
 
-## Retrain the Models
+## Dataset
 
-```bash
-cd scripts
-python train.py              # trains all 4 subsets
-python train.py --subset 1   # trains FD001 only
-```
+NASA C-MAPSS (Commercial Modular Aero-Propulsion System Simulation):
 
-After retraining, rebuild and push the Docker image:
-```bash
-docker build -t amalsalilan/rul-api:latest -f Dockerfile .
-docker push amalsalilan/rul-api:latest
-```
+| Subset | Train Engines | Test Engines | Operating Conditions | Fault Modes |
+|--------|--------------|--------------|----------------------|-------------|
+| FD001  | 100          | 100          | 1                    | 1           |
+| FD002  | 260          | 259          | 6                    | 1           |
+| FD003  | 100          | 100          | 1                    | 2           |
+| FD004  | 248          | 249          | 6                    | 2           |
 
 ---
 
-## Troubleshooting
+## Evaluation Metrics
 
-**Grafana dashboards are empty**
-→ Run the `bulk_predict.py` commands from the [Populate the Dashboards](#populate-the-dashboards) section.
-
-**Port already in use**
-→ Change the ports in `docker-compose.yml` (left side of `host:container`).
-
-**Models not loading (`No module named ...`)**
-→ Your local model files were saved with a different Python/numpy version. Retrain: `python train.py`
-
-**Database not connecting**
-→ Run `docker compose down -v` then `docker compose up` to reset.
-
-**`docker compose` command not found**
-→ Make sure Docker Desktop is running and updated to a recent version.
+| Metric | Description |
+|--------|-------------|
+| **RMSE** | Root Mean Squared Error (cycles) |
+| **MAE** | Mean Absolute Error (cycles) |
+| **R²** | Proportion of variance explained |
+| **NASA Score** | Asymmetric penalty — late predictions penalised more than early (lower = better) |
