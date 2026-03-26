@@ -17,10 +17,19 @@ COPY docker/entrypoint.sh     ./entrypoint.sh
 COPY scripts/models/          ./models/
 COPY ui/                      ./ui/
 
-# Copy only the inference-time data files (no training data)
-COPY scripts/data/test_FD*.txt  ./test_data/
-COPY scripts/data/RUL_FD*.txt   ./test_data/
-COPY scripts/data/demo_FD*.txt  ./test_data/
+# Copy only the inference-time data files (explicit — no globs for buildx compatibility)
+COPY scripts/data/test_FD001.txt  ./test_data/test_FD001.txt
+COPY scripts/data/test_FD002.txt  ./test_data/test_FD002.txt
+COPY scripts/data/test_FD003.txt  ./test_data/test_FD003.txt
+COPY scripts/data/test_FD004.txt  ./test_data/test_FD004.txt
+COPY scripts/data/RUL_FD001.txt   ./test_data/RUL_FD001.txt
+COPY scripts/data/RUL_FD002.txt   ./test_data/RUL_FD002.txt
+COPY scripts/data/RUL_FD003.txt   ./test_data/RUL_FD003.txt
+COPY scripts/data/RUL_FD004.txt   ./test_data/RUL_FD004.txt
+COPY scripts/data/demo_FD001.txt  ./test_data/demo_FD001.txt
+COPY scripts/data/demo_FD002.txt  ./test_data/demo_FD002.txt
+COPY scripts/data/demo_FD003.txt  ./test_data/demo_FD003.txt
+COPY scripts/data/demo_FD004.txt  ./test_data/demo_FD004.txt
 
 RUN chmod +x ./entrypoint.sh
 
