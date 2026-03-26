@@ -106,6 +106,12 @@ CREATE TABLE IF NOT EXISTS predictions (
     cycle            INTEGER      NOT NULL CHECK (cycle >= 1),
     n_history_cycles INTEGER      NOT NULL DEFAULT 1,
     predicted_rul    REAL         NOT NULL,
+    health_status    TEXT         GENERATED ALWAYS AS (
+                         CASE WHEN predicted_rul <= 10 THEN 'CRITICAL'
+                              WHEN predicted_rul <= 30 THEN 'WARNING'
+                              ELSE 'HEALTHY'
+                         END
+                     ) STORED,
     rul_cap          SMALLINT     NOT NULL,
     endpoint         TEXT         NOT NULL,          -- /predict | /predict/batch | /predict/sequence
     latency_ms       REAL,
@@ -115,6 +121,7 @@ CREATE TABLE IF NOT EXISTS predictions (
 CREATE INDEX IF NOT EXISTS idx_predictions_engine       ON predictions (engine_id, predicted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_predictions_predicted_at ON predictions (predicted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_predictions_request      ON predictions (request_id);
+CREATE INDEX IF NOT EXISTS idx_predictions_health       ON predictions (health_status);
 
 -- =============================================================================
 -- prediction_errors
@@ -166,8 +173,8 @@ CREATE OR REPLACE VIEW v_fleet_health_summary AS
 SELECT
     e.subset,
     CASE
-        WHEN p.predicted_rul <= 30  THEN 'CRITICAL'
-        WHEN p.predicted_rul <= 60  THEN 'WARNING'
+        WHEN p.predicted_rul <= 10  THEN 'CRITICAL'
+        WHEN p.predicted_rul <= 30  THEN 'WARNING'
         ELSE                             'HEALTHY'
     END                                   AS health_status,
     COUNT(DISTINCT e.engine_id)           AS engine_count,
@@ -188,6 +195,23 @@ ORDER BY e.subset, health_status;
 -- =============================================================================
 -- Migration guards — safe to run on existing volumes (ADD COLUMN IF NOT EXISTS)
 -- =============================================================================
+-- predictions.health_status (generated column — safe to skip if already exists)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='predictions' AND column_name='health_status'
+    ) THEN
+        ALTER TABLE predictions ADD COLUMN health_status TEXT
+            GENERATED ALWAYS AS (
+                CASE WHEN predicted_rul <= 10 THEN 'CRITICAL'
+                     WHEN predicted_rul <= 30 THEN 'WARNING'
+                     ELSE 'HEALTHY'
+                END
+            ) STORED;
+        CREATE INDEX IF NOT EXISTS idx_predictions_health ON predictions (health_status);
+    END IF;
+END $$;
+
 ALTER TABLE model_registry ADD COLUMN IF NOT EXISTS model_version    TEXT;
 ALTER TABLE model_registry ADD COLUMN IF NOT EXISTS algorithm        TEXT DEFAULT 'XGBoost';
 ALTER TABLE model_registry ADD COLUMN IF NOT EXISTS train_rmse       REAL;

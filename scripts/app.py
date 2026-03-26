@@ -26,7 +26,10 @@ import pandas as pd
 from uuid import uuid4
 from pathlib import Path
 from typing import Optional
+from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 import psycopg2
 import psycopg2.pool
@@ -147,6 +150,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Test data directory (Docker: /app/test_data, local: scripts/data)
+_here = Path(__file__).parent
+TEST_DATA_DIR = _here / "test_data" if (_here / "test_data").exists() else _here / "data"
+# Demo data directory — 5 engines per subset from training data (run-to-failure).
+# In Docker the demo files land in test_data/ (same COPY layer as test files).
+DEMO_DATA_DIR = TEST_DATA_DIR
+
+# Serve the web UI as static files
+# Docker: app.py → /app/app.py, ui → /app/ui  (parent / "ui")
+# Local:  app.py → scripts/app.py, ui → project root / ui  (parent.parent / "ui")
+UI_DIR = _here / "ui" if (_here / "ui").exists() else _here.parent / "ui"
+
+if UI_DIR.exists():
+    app.mount("/ui", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
+
+@app.get("/", include_in_schema=False)
+def root():
+    return FileResponse(str(UI_DIR / "index.html"))
+
 
 # ---------------------------------------------------------------------------
 # Pydantic schemas
@@ -231,8 +253,8 @@ class GroundTruthInput(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _health_status(rul: float) -> str:
-    if rul <= 30:  return "CRITICAL"
-    if rul <= 60:  return "WARNING"
+    if rul <= 10:  return "CRITICAL"
+    if rul <= 30:  return "WARNING"
     return "HEALTHY"
 
 
@@ -335,18 +357,31 @@ def _insert_prediction(
     engine_id: int, model_id: int, cycle: int, n_history: int,
     predicted_rul: float, endpoint: str,
     request_id: str, latency_ms: float, conn,
+    predicted_at: Optional[datetime] = None,
 ) -> int:
     with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO predictions
-                (request_id, engine_id, model_id, cycle, n_history_cycles,
-                 predicted_rul, rul_cap, endpoint, latency_ms)
-            VALUES (%s, %s, %s, %s, %s,  %s, %s, %s, %s)
-            RETURNING prediction_id
-        """, (
-            request_id, engine_id, model_id, cycle, n_history,
-            predicted_rul, RUL_CAP, endpoint, latency_ms,
-        ))
+        if predicted_at is not None:
+            cur.execute("""
+                INSERT INTO predictions
+                    (request_id, engine_id, model_id, cycle, n_history_cycles,
+                     predicted_rul, rul_cap, endpoint, latency_ms, predicted_at)
+                VALUES (%s, %s, %s, %s, %s,  %s, %s, %s, %s, %s)
+                RETURNING prediction_id
+            """, (
+                request_id, engine_id, model_id, cycle, n_history,
+                predicted_rul, RUL_CAP, endpoint, latency_ms, predicted_at,
+            ))
+        else:
+            cur.execute("""
+                INSERT INTO predictions
+                    (request_id, engine_id, model_id, cycle, n_history_cycles,
+                     predicted_rul, rul_cap, endpoint, latency_ms)
+                VALUES (%s, %s, %s, %s, %s,  %s, %s, %s, %s)
+                RETURNING prediction_id
+            """, (
+                request_id, engine_id, model_id, cycle, n_history,
+                predicted_rul, RUL_CAP, endpoint, latency_ms,
+            ))
         return cur.fetchone()[0]
 
 
@@ -457,6 +492,405 @@ def predict_batch(req: BatchRequest):
         })
 
     return {"predictions": results, "count": len(results), "request_id": request_id}
+
+
+# ---------------------------------------------------------------------------
+# Test-data prediction helpers
+# ---------------------------------------------------------------------------
+
+def _load_test_last(dataset: str) -> pd.DataFrame:
+    """Load test_FD00x.txt and return the last cycle per engine."""
+    path = TEST_DATA_DIR / f"test_{dataset}.txt"
+    if not path.exists():
+        raise FileNotFoundError(f"Test data not found: {path}")
+    df = pd.read_csv(path, sep=r"\s+", header=None, names=COLUMN_NAMES)
+    return (
+        df.sort_values(["unit", "cycle"])
+          .groupby("unit").last()
+          .reset_index()
+    )
+
+
+class TestBatchRequest(BaseModel):
+    dataset:     str
+    engine_ids:  Optional[list[int]] = None  # None → use max_engines from the top
+    max_engines: int = Field(default=10, ge=1, le=100)
+
+
+@app.get("/test-data/{dataset}/engines", tags=["Test Data"])
+def test_data_engines(dataset: str):
+    """Return the list of engine IDs available in the test file for a dataset."""
+    if dataset not in ("FD001", "FD002", "FD003", "FD004"):
+        raise HTTPException(status_code=400, detail="dataset must be FD001–FD004")
+    try:
+        df = _load_test_last(dataset)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    engines = [
+        {"unit_number": int(r["unit"]), "last_cycle": int(r["cycle"])}
+        for _, r in df.iterrows()
+    ]
+    return {"dataset": dataset, "subset": int(dataset[-1]), "engines": engines}
+
+
+@app.post("/predict/from-test", tags=["Prediction"])
+def predict_from_test(req: TestBatchRequest):
+    """
+    Run batch predictions using the bundled test dataset — no manual sensor entry.
+    Specify a dataset and optionally a list of engine IDs; defaults to the first
+    max_engines engines.
+    """
+    if req.dataset not in ("FD001", "FD002", "FD003", "FD004"):
+        raise HTTPException(status_code=400, detail="dataset must be FD001–FD004")
+    try:
+        df = _load_test_last(req.dataset)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if req.engine_ids:
+        df = df[df["unit"].isin(req.engine_ids)]
+    else:
+        df = df.head(req.max_engines)
+
+    if df.empty:
+        raise HTTPException(status_code=404, detail="No matching engines found.")
+
+    subset   = int(req.dataset[-1])
+    sensors  = SENSORS[subset]
+    instances = []
+    for _, row in df.iterrows():
+        payload: dict = {
+            "subset":    subset,
+            "engine_id": int(row["unit"]),
+            "cycle":     int(row["cycle"]),
+            "setting_1": float(row["setting_1"]),
+            "setting_2": float(row["setting_2"]),
+            "setting_3": float(row["setting_3"]),
+        }
+        for s in sensors:
+            payload[s] = float(row[s])
+        instances.append(SensorSnapshot(**payload))
+
+    return predict_batch(BatchRequest(instances=instances))
+
+
+# ---------------------------------------------------------------------------
+# Demo history mode — run predictions for ALL cycles of selected engines
+# ---------------------------------------------------------------------------
+
+def _load_demo_all(dataset: str) -> pd.DataFrame:
+    """Load demo_FD00x.txt with all cycles. Falls back to full training file locally."""
+    path = DEMO_DATA_DIR / f"demo_{dataset}.txt"
+    if not path.exists():
+        path = DEMO_DATA_DIR / f"train_{dataset}.txt"
+    if not path.exists():
+        raise FileNotFoundError(f"Demo data not found for {dataset} in {DEMO_DATA_DIR}")
+    from config import COLUMN_NAMES as COL_NAMES
+    df = pd.read_csv(path, sep=r"\s+", header=None, names=COL_NAMES)
+    return df.sort_values(["unit", "cycle"]).reset_index(drop=True)
+
+
+class HistoryBatchRequest(BaseModel):
+    dataset:    str
+    engine_ids: Optional[list[int]] = None  # None → all available engines in demo file
+
+
+@app.get("/demo-data/{dataset}/engines", tags=["Demo History"])
+def demo_data_engines(dataset: str):
+    """Return engines available in the demo file (5 per subset, run-to-failure)."""
+    if dataset not in ("FD001", "FD002", "FD003", "FD004"):
+        raise HTTPException(status_code=400, detail="dataset must be FD001–FD004")
+    try:
+        df = _load_demo_all(dataset)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    summary = (
+        df.groupby("unit")["cycle"]
+          .agg(max_cycle="max", total_cycles="count")
+          .reset_index()
+    )
+    engines = [
+        {"unit_number": int(r["unit"]), "max_cycle": int(r["max_cycle"]), "total_cycles": int(r["total_cycles"])}
+        for _, r in summary.iterrows()
+    ]
+    return {"dataset": dataset, "subset": int(dataset[-1]), "engines": engines}
+
+
+@app.post("/predict/engine-history", tags=["Demo History"])
+def predict_engine_history(req: HistoryBatchRequest):
+    """
+    Run predictions for EVERY cycle of selected demo engines.
+
+    Uses run-to-failure training data (5 engines per subset).
+    Timestamps are synthesised so cycle 1 is oldest and the final cycle is NOW,
+    giving Grafana a real degradation time-series (HEALTHY → WARNING → CRITICAL).
+
+    Returns a summary; all predictions are saved to the predictions table.
+    """
+    if req.dataset not in ("FD001", "FD002", "FD003", "FD004"):
+        raise HTTPException(status_code=400, detail="dataset must be FD001–FD004")
+    try:
+        df = _load_demo_all(req.dataset)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if req.engine_ids:
+        df = df[df["unit"].isin(req.engine_ids)]
+    if df.empty:
+        raise HTTPException(status_code=404, detail="No matching engines found.")
+
+    subset   = int(req.dataset[-1])
+    artifact = get_artifact(subset)
+    sensors  = artifact["sensors"]
+    features = artifact["features"]
+
+    # Compute rolling features for all selected engines in one pass
+    df_feat = add_rolling_features(df, sensors, window=artifact["window"])
+
+    # Anchor: the latest cycle of ANY engine in the selection maps to NOW
+    global_max_cycle = int(df_feat["cycle"].max())
+    now = datetime.now(timezone.utc)
+
+    request_id = str(uuid4())
+    total_saved = 0
+    engine_summaries = []
+
+    if _pool is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    conn = get_conn()
+    try:
+        model_id = _get_active_model_id(subset, conn)
+
+        for unit, group in df_feat.groupby("unit"):
+            unit = int(unit)
+            engine_id = _upsert_engine(unit, subset, conn)
+
+            preds_for_engine = []
+            for _, row in group.iterrows():
+                cycle = int(row["cycle"])
+                # Synthetic timestamp: each cycle step = 1 hour back from now
+                hours_ago     = global_max_cycle - cycle
+                predicted_at  = now - timedelta(hours=hours_ago)
+
+                # Direct inference on pre-computed feature row
+                X   = artifact["scaler"].transform(row[features].values.reshape(1, -1))
+                rul = round(float(np.clip(artifact["model"].predict(X)[0], 0, artifact["rul_cap"])), 1)
+
+                # Upsert sensor reading (use available sensors for this subset)
+                s_vals = {s: float(row[s]) for s in sensors}
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO sensor_readings
+                            (engine_id, cycle,
+                             setting_1, setting_2, setting_3,
+                             s2, s3, s4, s7, s8, s9, s11, s12, s13, s14, s15, s17, s20, s21)
+                        VALUES
+                            (%s, %s,  %s, %s, %s,
+                             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (engine_id, cycle) DO UPDATE SET
+                            setting_1 = EXCLUDED.setting_1,
+                            setting_2 = EXCLUDED.setting_2,
+                            setting_3 = EXCLUDED.setting_3,
+                            s2=EXCLUDED.s2, s3=EXCLUDED.s3, s4=EXCLUDED.s4,
+                            s7=EXCLUDED.s7, s8=EXCLUDED.s8, s9=EXCLUDED.s9,
+                            s11=EXCLUDED.s11, s12=EXCLUDED.s12, s13=EXCLUDED.s13,
+                            s14=EXCLUDED.s14, s15=EXCLUDED.s15, s17=EXCLUDED.s17,
+                            s20=EXCLUDED.s20, s21=EXCLUDED.s21,
+                            recorded_at = %s
+                    """, (
+                        engine_id, cycle,
+                        float(row["setting_1"]), float(row["setting_2"]), float(row["setting_3"]),
+                        s_vals.get("s2"), s_vals.get("s3"), s_vals.get("s4"),
+                        s_vals.get("s7"), s_vals.get("s8"), s_vals.get("s9"),
+                        s_vals.get("s11"), s_vals.get("s12"), s_vals.get("s13"),
+                        s_vals.get("s14"), s_vals.get("s15"), s_vals.get("s17"),
+                        s_vals.get("s20"), s_vals.get("s21"),
+                        predicted_at,
+                    ))
+
+                _insert_prediction(
+                    engine_id=engine_id, model_id=model_id,
+                    cycle=cycle, n_history=cycle,
+                    predicted_rul=rul, endpoint="/predict/engine-history",
+                    request_id=request_id, latency_ms=0.0,
+                    conn=conn, predicted_at=predicted_at,
+                )
+                preds_for_engine.append(rul)
+                total_saved += 1
+
+            conn.commit()
+            final_rul  = preds_for_engine[-1] if preds_for_engine else 0
+            engine_summaries.append({
+                "unit_number":  unit,
+                "total_cycles": len(preds_for_engine),
+                "final_rul":    final_rul,
+                "health_status": _health_status(final_rul),
+            })
+            log.info(
+                f"History  unit={unit}  FD00{subset}  "
+                f"cycles={len(preds_for_engine)}  final_RUL={final_rul}"
+            )
+
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        log.error(f"History prediction failed: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        put_conn(conn)
+
+    span_hours = global_max_cycle  # oldest cycle is ~global_max_cycle hours ago
+    return {
+        "dataset":          req.dataset,
+        "total_predictions": total_saved,
+        "engines_processed": len(engine_summaries),
+        "time_span_hours":  span_hours,
+        "request_id":       request_id,
+        "engines":          engine_summaries,
+    }
+
+
+@app.post("/predict/fleet-snapshot", tags=["Demo History"])
+def predict_fleet_snapshot(req: HistoryBatchRequest):
+    """
+    Simulate a realistic fleet by snapshotting each demo engine at a different
+    life stage so the fleet shows a mix of HEALTHY / WARNING / CRITICAL engines.
+
+    Life-stage percentages applied to each engine in order:
+        [25%, 45%, 65%, 80%, 100%]
+    — or evenly distributed when a different number of engines is selected.
+
+    All predictions are saved with timestamp = NOW() so the Fleet Overview
+    health panels update immediately.
+    """
+    if req.dataset not in ("FD001", "FD002", "FD003", "FD004"):
+        raise HTTPException(status_code=400, detail="dataset must be FD001–FD004")
+    try:
+        df_all = _load_demo_all(req.dataset)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Determine which engines to use and their snapshot percentages
+    units = sorted(df_all["unit"].unique().tolist())
+    if req.engine_ids:
+        units = [u for u in units if u in req.engine_ids]
+    if not units:
+        raise HTTPException(status_code=404, detail="No matching engines found.")
+
+    # Percentages tuned to produce HEALTHY / WARNING / CRITICAL spread
+    # based on the model's actual prediction curve (calibrated to 10/30 thresholds)
+    n = len(units)
+    _base_pcts = [0.20, 0.30, 0.42, 0.52, 0.80]
+    if n >= 5:
+        pcts = _base_pcts[:n]
+    elif n == 1:
+        pcts = [0.40]
+    else:
+        step = 0.60 / max(n - 1, 1)
+        pcts = [0.20 + step * i for i in range(n)]
+
+    subset   = int(req.dataset[-1])
+    artifact = get_artifact(subset)
+    sensors  = artifact["sensors"]
+    features = artifact["features"]
+
+    if _pool is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    request_id = str(uuid4())
+    results    = []
+
+    conn = get_conn()
+    try:
+        model_id = _get_active_model_id(subset, conn)
+
+        for unit, pct in zip(units, pcts):
+            unit_df = df_all[df_all["unit"] == unit].copy()
+            max_cycle = int(unit_df["cycle"].max())
+            snap_cycle = max(1, round(pct * max_cycle))
+
+            # Slice up to snapshot cycle (keeps rolling features accurate)
+            sliced = unit_df[unit_df["cycle"] <= snap_cycle].copy()
+            sliced = add_rolling_features(sliced, sensors, window=artifact["window"])
+
+            last_row = sliced.sort_values("cycle").iloc[-1]
+            X   = artifact["scaler"].transform(last_row[features].values.reshape(1, -1))
+            rul = round(float(np.clip(artifact["model"].predict(X)[0], 0, artifact["rul_cap"])), 1)
+
+            t0        = time.perf_counter()
+            engine_id = _upsert_engine(int(unit), subset, conn)
+            latency   = round((time.perf_counter() - t0) * 1000, 2)
+
+            # Upsert sensor reading at snapshot cycle
+            s_vals = {s: float(last_row.get(s, 0) or 0) for s in sensors}
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO sensor_readings
+                        (engine_id, cycle,
+                         setting_1, setting_2, setting_3,
+                         s2, s3, s4, s7, s8, s9, s11, s12, s13, s14, s15, s17, s20, s21)
+                    VALUES (%s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (engine_id, cycle) DO UPDATE SET
+                        setting_1=EXCLUDED.setting_1, setting_2=EXCLUDED.setting_2,
+                        setting_3=EXCLUDED.setting_3,
+                        s2=EXCLUDED.s2, s3=EXCLUDED.s3, s4=EXCLUDED.s4,
+                        s7=EXCLUDED.s7, s8=EXCLUDED.s8, s9=EXCLUDED.s9,
+                        s11=EXCLUDED.s11, s12=EXCLUDED.s12, s13=EXCLUDED.s13,
+                        s14=EXCLUDED.s14, s15=EXCLUDED.s15, s17=EXCLUDED.s17,
+                        s20=EXCLUDED.s20, s21=EXCLUDED.s21, recorded_at=NOW()
+                """, (
+                    engine_id, int(last_row["cycle"]),
+                    float(last_row["setting_1"]), float(last_row["setting_2"]),
+                    float(last_row["setting_3"]),
+                    s_vals.get("s2"), s_vals.get("s3"), s_vals.get("s4"),
+                    s_vals.get("s7"), s_vals.get("s8"), s_vals.get("s9"),
+                    s_vals.get("s11"), s_vals.get("s12"), s_vals.get("s13"),
+                    s_vals.get("s14"), s_vals.get("s15"), s_vals.get("s17"),
+                    s_vals.get("s20"), s_vals.get("s21"),
+                ))
+
+            pred_id = _insert_prediction(
+                engine_id=engine_id, model_id=model_id,
+                cycle=int(last_row["cycle"]), n_history=snap_cycle,
+                predicted_rul=rul, endpoint="/predict/fleet-snapshot",
+                request_id=request_id, latency_ms=latency, conn=conn,
+            )
+            conn.commit()
+
+            results.append({
+                "unit_number":   int(unit),
+                "snapshot_pct":  round(pct * 100),
+                "snapshot_cycle": snap_cycle,
+                "max_cycle":     max_cycle,
+                "predicted_rul": rul,
+                "health_status": _health_status(rul),
+                "prediction_id": pred_id,
+            })
+            log.info(
+                f"Fleet-snap  unit={unit}  FD00{subset}  "
+                f"pct={round(pct*100)}%  cycle={snap_cycle}/{max_cycle}  RUL={rul}"
+            )
+
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as exc:
+        conn.rollback()
+        log.error(f"Fleet snapshot failed: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        put_conn(conn)
+
+    return {
+        "dataset":  req.dataset,
+        "engines":  results,
+        "count":    len(results),
+        "request_id": request_id,
+    }
 
 
 @app.post("/predict/sequence", response_model=PredictResponse, tags=["Prediction"])
@@ -590,6 +1024,86 @@ def submit_ground_truth(body: GroundTruthInput):
     except Exception as exc:
         conn.rollback()
         log.error(f"ground-truth write failed: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        put_conn(conn)
+
+
+# ---------------------------------------------------------------------------
+# Routes — Admin
+# ---------------------------------------------------------------------------
+
+@app.post("/admin/seed", tags=["Admin"])
+def admin_seed(force: bool = False):
+    """
+    Seed the database with demo data so every Grafana panel has something to show.
+    Runs automatically on startup when the DB is empty.
+
+    Set force=true to re-seed even if predictions already exist.
+    """
+    if _pool is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    # Check current state
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM predictions")
+            total = cur.fetchone()[0]
+    finally:
+        put_conn(conn)
+
+    if total > 0 and not force:
+        return {"status": "skipped", "reason": f"DB already has {total} predictions. Use force=true to reseed."}
+
+    datasets = ["FD001", "FD002", "FD003", "FD004"]
+    summary  = {"fleet_snapshots": [], "histories": []}
+
+    # Step 1 — fleet snapshot for all datasets (activates fleet panels + recent activity)
+    for ds in datasets:
+        try:
+            result = predict_fleet_snapshot(HistoryBatchRequest(dataset=ds))
+            summary["fleet_snapshots"].append({
+                "dataset": ds,
+                "engines": result["count"],
+                "statuses": list({e["health_status"] for e in result["engines"]}),
+            })
+        except Exception as exc:
+            log.error(f"Seed fleet-snapshot {ds}: {exc}")
+
+    # Step 2 — history for engine 1 of each dataset (activates degradation curves)
+    for ds in datasets:
+        try:
+            result = predict_engine_history(HistoryBatchRequest(dataset=ds, engine_ids=[1]))
+            summary["histories"].append({
+                "dataset":           ds,
+                "total_predictions": result["total_predictions"],
+                "time_span_hours":   result["time_span_hours"],
+            })
+        except Exception as exc:
+            log.error(f"Seed engine-history {ds}: {exc}")
+
+    log.info(f"Seed complete — forced={force}")
+    return {"status": "seeded", "force": force, "summary": summary}
+
+
+@app.post("/admin/flush", tags=["Admin"])
+def admin_flush():
+    """Wipe all prediction data and reset sequences for a clean slate."""
+    if _pool is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "TRUNCATE prediction_errors, predictions, sensor_readings, engines "
+                "RESTART IDENTITY CASCADE"
+            )
+        conn.commit()
+        log.info("DB flushed — all prediction data wiped.")
+        return {"status": "flushed"}
+    except Exception as exc:
+        conn.rollback()
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
         put_conn(conn)

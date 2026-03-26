@@ -10,10 +10,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY scripts/app.py           ./app.py
 COPY scripts/config.py        ./config.py
 COPY docker/register_models.py ./register_models.py
+COPY docker/seed_db.py        ./seed_db.py
 COPY docker/entrypoint.sh     ./entrypoint.sh
 
 # Copy trained model artifacts (~7 MB for all 4 subsets)
 COPY scripts/models/          ./models/
+COPY ui/                      ./ui/
+
+# Copy test data for /predict/from-test endpoint (train files excluded via .dockerignore)
+COPY scripts/data/            ./test_data/
 
 RUN chmod +x ./entrypoint.sh
 
