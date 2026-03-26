@@ -17,8 +17,10 @@ COPY docker/entrypoint.sh     ./entrypoint.sh
 COPY scripts/models/          ./models/
 COPY ui/                      ./ui/
 
-# Copy test data for /predict/from-test endpoint (train files excluded via .dockerignore)
-COPY scripts/data/            ./test_data/
+# Copy only the inference-time data files (no training data)
+COPY scripts/data/test_FD*.txt  ./test_data/
+COPY scripts/data/RUL_FD*.txt   ./test_data/
+COPY scripts/data/demo_FD*.txt  ./test_data/
 
 RUN chmod +x ./entrypoint.sh
 
