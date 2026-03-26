@@ -5,8 +5,9 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
-# Training data — large files not needed at inference time
+# Training data — large files not needed at inference time (not copied explicitly)
 scripts/data/train_FD*.txt
+scripts/data/*.pdf
 
 # Git
 .git/
