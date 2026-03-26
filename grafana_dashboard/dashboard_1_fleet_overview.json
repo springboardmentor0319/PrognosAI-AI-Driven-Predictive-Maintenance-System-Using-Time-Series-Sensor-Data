@@ -1,160 +1,793 @@
 {
-  "__inputs": [{ "name": "DS_POSTGRESQL", "label": "PostgreSQL", "type": "datasource", "pluginId": "postgres", "pluginName": "PostgreSQL" }],
-  "__requires": [{ "type": "datasource", "id": "postgres", "name": "PostgreSQL", "version": "1.0.0" }],
+  "__inputs": [
+    {
+      "name": "DS_POSTGRESQL",
+      "label": "PostgreSQL",
+      "type": "datasource",
+      "pluginId": "postgres",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "postgres",
+      "name": "PostgreSQL",
+      "version": "1.0.0"
+    }
+  ],
   "title": "Fleet Overview — Engine Health Monitor",
   "description": "Real-time health status of the entire turbofan engine fleet.",
-  "tags": ["prognosai", "fleet", "health"],
-  "timezone": "browser", "refresh": "30s", "schemaVersion": 38, "version": 1,
+  "tags": [
+    "prognosai",
+    "fleet",
+    "health"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "version": 1,
   "uid": "prognosai-fleet-v2",
-  "time": { "from": "now-24h", "to": "now" },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "panels": [
-
     {
-      "id": 1, "type": "text", "title": "",
-      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
-      "options": { "mode": "markdown", "content": "## ✈️ PrognosAI — Engine Fleet Health Monitor\nReal-time predictive maintenance. **Remaining Useful Life (RUL)** = estimated cycles before an engine requires maintenance.&nbsp;&nbsp; 🟢 >60 = Healthy &nbsp; 🟡 30–60 = Warning &nbsp; 🔴 <30 = Critical" }
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## ✈️ PrognosAI — Engine Fleet Health Monitor\nReal-time predictive maintenance. **Remaining Useful Life (RUL)** = estimated cycles before an engine requires maintenance.&nbsp;&nbsp; 🟢 >30 = Healthy &nbsp; 🟡 10–30 = Warning &nbsp; 🔴 ≤10 = Critical"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        }
+      }
     },
-
     {
-      "id": 2, "type": "stat", "title": "Total Engines Monitored",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 2 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "unit": "none" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT COUNT(DISTINCT engine_id) AS \"Total Engines\" FROM predictions",
-        "format": "table", "refId": "A" }]
+      "id": 2,
+      "type": "stat",
+      "title": "Total Engines Monitored",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 2
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "none",
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT COUNT(DISTINCT engine_id) AS \"Total Engines\" FROM predictions",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 3, "type": "stat", "title": "✅ Healthy Engines",
-      "description": "Engines with more than 60 cycles of remaining life",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 2 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "none" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT COUNT(*) AS \"Healthy\" FROM (SELECT DISTINCT ON (engine_id) engine_id, health_status FROM predictions ORDER BY engine_id, predicted_at DESC) t WHERE health_status = 'HEALTHY'",
-        "format": "table", "refId": "A" }]
+      "id": 3,
+      "type": "stat",
+      "title": "✅ Healthy Engines",
+      "description": "Engines with more than 30 cycles of remaining life",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 2
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "unit": "none",
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT COUNT(*) AS \"Healthy\" FROM (SELECT DISTINCT ON (engine_id) engine_id, health_status FROM predictions ORDER BY engine_id, predicted_at DESC) t WHERE health_status = 'HEALTHY'",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 4, "type": "stat", "title": "⚠️ Warning — Schedule Maintenance",
-      "description": "Engines with 30–60 cycles of remaining life",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 2 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "unit": "none" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT COUNT(*) AS \"Warning\" FROM (SELECT DISTINCT ON (engine_id) engine_id, health_status FROM predictions ORDER BY engine_id, predicted_at DESC) t WHERE health_status = 'WARNING'",
-        "format": "table", "refId": "A" }]
+      "id": 4,
+      "type": "stat",
+      "title": "⚠️ Warning — Schedule Maintenance",
+      "description": "Engines with 10–30 cycles of remaining life",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 2
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "unit": "none",
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT COUNT(*) AS \"Warning\" FROM (SELECT DISTINCT ON (engine_id) engine_id, health_status FROM predictions ORDER BY engine_id, predicted_at DESC) t WHERE health_status = 'WARNING'",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 5, "type": "stat", "title": "🔴 Critical — Immediate Action",
-      "description": "Engines with fewer than 30 cycles remaining",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 2 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" }, "unit": "none" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT COUNT(*) AS \"Critical\" FROM (SELECT DISTINCT ON (engine_id) engine_id, health_status FROM predictions ORDER BY engine_id, predicted_at DESC) t WHERE health_status = 'CRITICAL'",
-        "format": "table", "refId": "A" }]
+      "id": 5,
+      "type": "stat",
+      "title": "🔴 Critical — Immediate Action",
+      "description": "Engines with 10 or fewer cycles remaining",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 2
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "unit": "none",
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT COUNT(*) AS \"Critical\" FROM (SELECT DISTINCT ON (engine_id) engine_id, health_status FROM predictions ORDER BY engine_id, predicted_at DESC) t WHERE health_status = 'CRITICAL'",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 6, "type": "stat", "title": "📊 Predictions (Last Hour)",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 2 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "unit": "none" } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT COUNT(*) AS \"Predictions\" FROM predictions WHERE predicted_at > NOW() - INTERVAL '1 hour'",
-        "format": "table", "refId": "A" }]
+      "id": 6,
+      "type": "stat",
+      "title": "📊 Predictions (Last Hour)",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 2
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "unit": "none",
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT COUNT(*) AS \"Predictions\" FROM predictions WHERE predicted_at > NOW() - INTERVAL '1 hour'",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 7, "type": "stat", "title": "⏱️ Fleet Avg Remaining Life",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 2 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 60 }] } } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT ROUND(AVG(predicted_rul)::numeric, 1) AS \"Avg RUL\" FROM (SELECT DISTINCT ON (engine_id) engine_id, predicted_rul FROM predictions ORDER BY engine_id, predicted_at DESC) t",
-        "format": "table", "refId": "A" }]
+      "id": 7,
+      "type": "stat",
+      "title": "⏱️ Fleet Avg Remaining Life",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 2
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          },
+          "custom": {}
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT ROUND(AVG(predicted_rul)::numeric, 1) AS \"Avg RUL\" FROM (SELECT DISTINCT ON (engine_id) engine_id, predicted_rul FROM predictions ORDER BY engine_id, predicted_at DESC) t",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 8, "type": "piechart", "title": "Fleet Health Distribution",
-      "gridPos": { "h": 9, "w": 7, "x": 0, "y": 6 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": {}, "overrides": [
-        { "matcher": { "id": "byName", "options": "HEALTHY" },  "properties": [{ "id": "color", "value": { "fixedColor": "#37872D", "mode": "fixed" } }] },
-        { "matcher": { "id": "byName", "options": "WARNING" },  "properties": [{ "id": "color", "value": { "fixedColor": "#FF9830", "mode": "fixed" } }] },
-        { "matcher": { "id": "byName", "options": "CRITICAL" }, "properties": [{ "id": "color", "value": { "fixedColor": "#E02F44", "mode": "fixed" } }] }
-      ]},
-      "options": { "pieType": "pie", "tooltip": { "mode": "single" }, "legend": { "displayMode": "table", "placement": "bottom", "values": ["value", "percent"] } },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT health_status AS metric, COUNT(*) AS value FROM (SELECT DISTINCT ON (engine_id) engine_id, health_status FROM predictions ORDER BY engine_id, predicted_at DESC) t GROUP BY health_status",
-        "format": "table", "refId": "A" }]
+      "id": 8,
+      "type": "piechart",
+      "title": "Fleet Health Distribution",
+      "gridPos": {
+        "h": 9,
+        "w": 7,
+        "x": 0,
+        "y": 6
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HEALTHY"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#37872D",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WARNING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF9830",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CRITICAL"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#E02F44",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "pieType": "pie",
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "values": [
+            "value",
+            "percent"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT\n  SUM(CASE WHEN health_status = 'HEALTHY'  THEN 1 ELSE 0 END) AS \"Healthy\",\n  SUM(CASE WHEN health_status = 'WARNING'  THEN 1 ELSE 0 END) AS \"Warning\",\n  SUM(CASE WHEN health_status = 'CRITICAL' THEN 1 ELSE 0 END) AS \"Critical\"\nFROM (\n  SELECT DISTINCT ON (engine_id) engine_id, health_status\n  FROM predictions\n  ORDER BY engine_id, predicted_at DESC\n) t",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 9, "type": "table", "title": "🚨 Engines Requiring Attention — Sorted by Urgency",
+      "id": 9,
+      "type": "table",
+      "title": "🚨 Engines Requiring Attention — Sorted by Urgency",
       "description": "WARNING and CRITICAL engines. Fix the lowest remaining life first.",
-      "gridPos": { "h": 9, "w": 17, "x": 7, "y": 6 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "custom": { "align": "auto" } }, "overrides": [
-        { "matcher": { "id": "byName", "options": "predicted_rul" }, "properties": [
-          { "id": "displayName", "value": "Remaining Life (cycles)" },
-          { "id": "custom.displayMode", "value": "color-background" },
-          { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 60 }] } },
-          { "id": "custom.width", "value": 200 }
-        ]},
-        { "matcher": { "id": "byName", "options": "health_status" }, "properties": [{ "id": "displayName", "value": "Status" },     { "id": "custom.width", "value": 100 }] },
-        { "matcher": { "id": "byName", "options": "unit_number" },   "properties": [{ "id": "displayName", "value": "Engine ID" },   { "id": "custom.width", "value": 90  }] },
-        { "matcher": { "id": "byName", "options": "dataset" },       "properties": [{ "id": "displayName", "value": "Dataset" },     { "id": "custom.width", "value": 85  }] },
-        { "matcher": { "id": "byName", "options": "cycle" },         "properties": [{ "id": "displayName", "value": "Cycle" },       { "id": "custom.width", "value": 75  }] },
-        { "matcher": { "id": "byName", "options": "predicted_at" },  "properties": [{ "id": "displayName", "value": "Last Checked"}, { "id": "custom.width", "value": 170 }] }
-      ]},
-      "options": { "sortBy": [{ "displayName": "Remaining Life (cycles)", "desc": false }] },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT e.unit_number, CONCAT('FD00', e.subset) AS dataset, p.cycle, p.predicted_rul, p.health_status, p.predicted_at FROM (SELECT DISTINCT ON (engine_id) engine_id, cycle, predicted_rul, health_status, predicted_at FROM predictions ORDER BY engine_id, predicted_at DESC) p JOIN engines e ON e.engine_id = p.engine_id WHERE p.health_status IN ('CRITICAL','WARNING') ORDER BY p.predicted_rul ASC LIMIT 50",
-        "format": "table", "refId": "A" }]
+      "gridPos": {
+        "h": 9,
+        "w": 17,
+        "x": 7,
+        "y": 6
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "predicted_rul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Remaining Life (cycles)"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 10
+                    },
+                    {
+                      "color": "green",
+                      "value": 30
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "health_status"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Status"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unit_number"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Engine ID"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dataset"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Dataset"
+              },
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cycle"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Cycle"
+              },
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "predicted_at"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Last Checked"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Remaining Life (cycles)",
+            "desc": false
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT e.unit_number, CONCAT('FD00', e.subset) AS dataset, p.cycle, p.predicted_rul, p.health_status, p.predicted_at FROM (SELECT DISTINCT ON (engine_id) engine_id, cycle, predicted_rul, health_status, predicted_at FROM predictions ORDER BY engine_id, predicted_at DESC) p JOIN engines e ON e.engine_id = p.engine_id WHERE p.health_status IN ('CRITICAL','WARNING') ORDER BY p.predicted_rul ASC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     },
-
     {
-      "id": 10, "type": "timeseries", "title": "Prediction Activity Over Time",
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 15 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "custom": { "lineWidth": 2, "fillOpacity": 15, "drawStyle": "bars" }, "unit": "none" } },
-      "options": { "tooltip": { "mode": "single" }, "legend": { "displayMode": "hidden" } },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT DATE_TRUNC('minute', predicted_at) AS time, COUNT(*) AS \"Predictions\" FROM predictions WHERE $__timeFilter(predicted_at) GROUP BY 1 ORDER BY 1",
-        "format": "time_series", "refId": "A" }]
+      "id": 10,
+      "type": "timeseries",
+      "title": "Prediction Activity Over Time",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 80,
+            "drawStyle": "bars",
+            "showPoints": "always",
+            "pointSize": 10,
+            "barMaxWidth": 20,
+            "barWidthFactor": 1.0
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "hidden"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT DATE_TRUNC('minute', predicted_at) AS time, COUNT(*) AS \"Predictions\"\nFROM predictions\nWHERE predicted_at >= NOW() - INTERVAL '3 hours'\nGROUP BY 1 ORDER BY 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": "2h"
     },
-
     {
-      "id": 11, "type": "timeseries", "title": "Fleet Average Remaining Life — Hourly Trend",
+      "id": 11,
+      "type": "timeseries",
+      "title": "Fleet Average Remaining Life — Hourly Trend",
       "description": "Downward trend = fleet aging. Threshold lines: red=30, orange=60.",
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 15 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "lineWidth": 2, "fillOpacity": 10 }, "unit": "none", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 60 }] } } },
-      "options": { "tooltip": { "mode": "single" }, "legend": { "displayMode": "hidden" } },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT DATE_TRUNC('hour', predicted_at) AS time, ROUND(AVG(predicted_rul)::numeric, 1) AS \"Avg Remaining Life\" FROM predictions WHERE $__timeFilter(predicted_at) GROUP BY 1 ORDER BY 1",
-        "format": "time_series", "refId": "A" }]
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "lineWidth": 3,
+            "fillOpacity": 10,
+            "drawStyle": "line",
+            "showPoints": "always",
+            "pointSize": 10,
+            "spanNulls": true
+          },
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "hidden"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT DATE_TRUNC('hour', predicted_at) AS time, ROUND(AVG(predicted_rul)::numeric, 1) AS \"Avg Remaining Life\"\nFROM predictions\nWHERE predicted_at >= NOW() - INTERVAL '24 hours'\nGROUP BY 1 ORDER BY 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": "2h"
     },
-
     {
-      "id": 12, "type": "bargauge", "title": "Remaining Life Distribution — All Engines Now",
-      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 22 },
-      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "unit": "none", "min": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 5 }, { "color": "green", "value": 10 }] } } },
-      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient", "showUnfilled": true },
-      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
-        "rawSql": "SELECT CASE WHEN predicted_rul <= 15 THEN '0–15  (Critical)' WHEN predicted_rul <= 30 THEN '16–30 (Critical)' WHEN predicted_rul <= 45 THEN '31–45 (Warning)' WHEN predicted_rul <= 60 THEN '46–60 (Warning)' WHEN predicted_rul <= 90 THEN '61–90 (Healthy)' ELSE '91–125 (Healthy)' END AS bracket, COUNT(*) AS \"Engines\" FROM (SELECT DISTINCT ON (engine_id) engine_id, predicted_rul FROM predictions ORDER BY engine_id, predicted_at DESC) t GROUP BY 1 ORDER BY MIN(predicted_rul)",
-        "format": "table", "refId": "A" }]
+      "id": 12,
+      "type": "bargauge",
+      "title": "Remaining Life Distribution — All Engines Now",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "none",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "green",
+                "value": 10
+              }
+            ]
+          },
+          "custom": {}
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT CASE WHEN predicted_rul <= 5 THEN '0–5   (Critical)' WHEN predicted_rul <= 10 THEN '6–10  (Critical)' WHEN predicted_rul <= 20 THEN '11–20 (Warning)' WHEN predicted_rul <= 30 THEN '21–30 (Warning)' WHEN predicted_rul <= 36 THEN '31–36 (Healthy)' ELSE '37+   (Healthy)' END AS bracket, COUNT(*) AS \"Engines\" FROM (SELECT DISTINCT ON (engine_id) engine_id, predicted_rul FROM predictions ORDER BY engine_id, predicted_at DESC) t GROUP BY 1 ORDER BY MIN(predicted_rul)",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }
