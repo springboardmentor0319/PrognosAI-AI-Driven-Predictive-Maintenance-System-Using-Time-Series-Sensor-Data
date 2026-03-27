@@ -1,0 +1,876 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_POSTGRESQL",
+      "label": "PostgreSQL",
+      "type": "datasource",
+      "pluginId": "postgres",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "postgres",
+      "name": "PostgreSQL",
+      "version": "1.0.0"
+    }
+  ],
+  "title": "Engine Deep Dive — RUL & Sensor Analysis",
+  "description": "Drill-down view for a single engine. Select dataset and engine from dropdowns.",
+  "tags": [
+    "prognosai",
+    "engine",
+    "sensors",
+    "rul"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "version": 1,
+  "uid": "prognosai-engine-v2",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "dataset",
+        "label": "Dataset",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "${DS_POSTGRESQL}"
+        },
+        "query": "SELECT CONCAT('FD00', subset) AS __value FROM model_registry WHERE is_active = TRUE ORDER BY subset",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      },
+      {
+        "name": "engine_unit",
+        "label": "Engine ID",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "${DS_POSTGRESQL}"
+        },
+        "query": "SELECT DISTINCT e.unit_number::text FROM engines e JOIN predictions p ON p.engine_id = e.engine_id WHERE CONCAT('FD00', e.subset) = '${dataset}' ORDER BY 1",
+        "refresh": 2,
+        "sort": 3,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Current Predicted RUL",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT p.predicted_rul AS \"Remaining Life (cycles)\" FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}' ORDER BY p.predicted_at DESC LIMIT 1",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Health Status",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 5,
+        "y": 0
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "HEALTHY": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "HEALTHY"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "WARNING": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "WARNING"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "CRITICAL": {
+                  "color": "red",
+                  "index": 2,
+                  "text": "CRITICAL"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT p.health_status AS \"Status\" FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}' ORDER BY p.predicted_at DESC LIMIT 1",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Last Observed Cycle",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 9,
+        "y": 0
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT p.cycle AS \"Cycle\" FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}' ORDER BY p.predicted_at DESC LIMIT 1",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Total Predictions",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 13,
+        "y": 0
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT COUNT(*) AS \"Predictions\" FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}'",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Avg API Latency",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 17,
+        "y": 0
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT ROUND(AVG(p.latency_ms)::numeric, 2) AS \"Avg Latency\" FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}'",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "History Cycles Used",
+      "description": "Cycles in last prediction (1 = snapshot only)",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 0
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "teal"
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT p.n_history_cycles AS \"History Cycles\" FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}' ORDER BY p.predicted_at DESC LIMIT 1",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Remaining Useful Life — Prediction History",
+      "description": "Every RUL prediction for this engine. Dashed lines: red=10 cycles (CRITICAL), orange=30 cycles (WARNING).",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "pointSize": 8,
+            "showPoints": "always",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "critical_threshold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    4,
+                    4
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warning_threshold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    4,
+                    4
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT p.predicted_at AS time, p.predicted_rul AS \"Predicted RUL\", 10.0 AS critical_threshold, 30.0 AS warning_threshold FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}'  ORDER BY p.predicted_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Sensor Degradation — Top Predictive Sensors (s3, s4, s11, s17)",
+      "description": "s3=HPC outlet temp · s4=LPT outlet temp · s11=corrected fan speed · s17=bypass ratio. These 4 sensors drive the RUL prediction most.",
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 14
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": true
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "s3 (HPC Outlet Temp)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF6B6B",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "s4 (LPT Outlet Temp)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FFA500",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "s11 (Corrected Fan Spd)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4ECDC4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "s17 (Bypass Ratio)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#95E1D3",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT sr.recorded_at AS time, sr.s3 AS \"s3 (HPC Outlet Temp)\", sr.s4 AS \"s4 (LPT Outlet Temp)\", sr.s11 AS \"s11 (Corrected Fan Spd)\", sr.s17 AS \"s17 (Bypass Ratio)\" FROM sensor_readings sr JOIN engines e ON e.engine_id = sr.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}'  ORDER BY sr.recorded_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Prediction Log",
+      "description": "Full prediction history for this engine.",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 14
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "predicted_rul"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "RUL"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 10
+                    },
+                    {
+                      "color": "green",
+                      "value": 30
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 75
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "health_status"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Status"
+              },
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "predicted_at"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Time"
+              },
+              {
+                "id": "custom.width",
+                "value": 155
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cycle"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Cycle"
+              },
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "latency_ms"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "ms"
+              },
+              {
+                "id": "custom.width",
+                "value": 55
+              },
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "endpoint"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Endpoint"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Time",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT p.predicted_at, p.cycle, p.predicted_rul, p.health_status, p.latency_ms, p.endpoint FROM predictions p JOIN engines e ON e.engine_id = p.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}' ORDER BY p.predicted_at DESC LIMIT 100",
+          "format": "table",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Additional Sensors — s2, s9, s12, s20, s21",
+      "description": "Secondary sensor signals contributing to the RUL prediction.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": true
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "rawSql": "SELECT sr.recorded_at AS time, sr.s2 AS \"s2 (Fan Outlet Temp)\", sr.s9 AS \"s9 (Core Speed)\", sr.s12 AS \"s12 (Static P HPC)\", sr.s20 AS \"s20 (Bleed Enthalpy)\", sr.s21 AS \"s21 (Fan Speed Demand)\" FROM sensor_readings sr JOIN engines e ON e.engine_id = sr.engine_id WHERE e.unit_number = ${engine_unit} AND CONCAT('FD00', e.subset) = '${dataset}'  ORDER BY sr.recorded_at",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
