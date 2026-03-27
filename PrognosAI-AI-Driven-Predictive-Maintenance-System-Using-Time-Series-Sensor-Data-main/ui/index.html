@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PrognosAI — Engine RUL Dashboard</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        surface: '#111827',
+                        panel:   '#1f2937',
+                        border:  '#374151',
+                    }
+                }
+            }
+        };
+    </script>
+
+    <!-- Alpine.js CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- App JS (load before Alpine defers init) -->
+    <script src="/ui/js/app.js"></script>
+    <script src="/ui/js/fleet.js"></script>
+    <script src="/ui/js/predict.js"></script>
+    <script src="/ui/js/batchtest.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/ui/css/custom.css" />
+</head>
+
+<body class="h-full bg-surface text-gray-100 flex flex-col" x-data="appStore()">
+
+<!-- ── Top bar ──────────────────────────────────────────────────────────── -->
+<header class="h-14 bg-gray-900 border-b border-border flex items-center px-5 flex-shrink-0">
+    <span class="text-blue-400 font-bold text-lg tracking-wide">PrognosAI</span>
+    <span class="ml-3 text-gray-400 text-sm">Engine RUL Prediction System</span>
+</header>
+
+<!-- ── Body: sidebar + content ──────────────────────────────────────────── -->
+<div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <nav class="w-52 bg-gray-900 border-r border-border flex flex-col flex-shrink-0 py-3 gap-1">
+
+        <button class="nav-item mx-2 flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-left"
+                :class="{ 'active': isActive('fleet') }"
+                @click="setTab('fleet')">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Fleet Overview
+        </button>
+
+        <button class="nav-item mx-2 flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-left"
+                :class="{ 'active': isActive('engine') }"
+                @click="setTab('engine')">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 4v-2m0 0a2 2 0 100 4m0-4a2 2 0 110 4m12-4v-2m0 0a2 2 0 100 4m0-4a2 2 0 110 4M6 16v2m0 0a2 2 0 100 4m0-4a2 2 0 110 4m6-4v2m0 0a2 2 0 100 4m0-4a2 2 0 110 4" />
+            </svg>
+            Engine Deep Dive
+        </button>
+
+        <button class="nav-item mx-2 flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-left"
+                :class="{ 'active': isActive('model') }"
+                @click="setTab('model')">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            Model Performance
+        </button>
+
+        <button class="nav-item mx-2 flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-left"
+                :class="{ 'active': isActive('predict') }"
+                @click="setTab('predict')">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            RUL Prediction
+        </button>
+
+        <!-- spacer pushes admin to bottom -->
+        <div class="flex-1"></div>
+
+        <button class="nav-item mx-2 flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-left"
+                :class="{ 'active': isActive('admin') }"
+                @click="setTab('admin')">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Admin
+        </button>
+
+    </nav>
+
+    <!-- ── Main content area ───────────────────────────────────────────── -->
+    <main class="flex-1 overflow-hidden flex flex-col">
+
+        <!-- ── Fleet Overview ─────────────────────────────────────────── -->
+        <div x-show="isActive('fleet')" class="flex flex-col flex-1 overflow-hidden">
+
+            <!-- Stat bar -->
+            <div class="flex items-center gap-6 px-5 py-3 bg-panel border-b border-border flex-shrink-0"
+                 x-data="fleetStore()" x-init="init()">
+
+                <template x-if="loading">
+                    <div class="flex items-center gap-2 text-gray-400 text-sm">
+                        <div class="spinner"></div>
+                        <span>Loading fleet stats…</span>
+                    </div>
+                </template>
+
+                <template x-if="!loading && error">
+                    <span class="text-red-400 text-sm">Failed to load fleet stats</span>
+                </template>
+
+                <template x-if="!loading && !error">
+                    <div class="flex items-center gap-6 text-sm">
+                        <div class="flex flex-col">
+                            <span class="text-gray-400 text-xs uppercase tracking-wide">Total Predictions</span>
+                            <span class="text-white font-semibold text-lg" x-text="total"></span>
+                        </div>
+                        <div class="w-px h-8 bg-border"></div>
+                        <div class="flex flex-col">
+                            <span class="text-gray-400 text-xs uppercase tracking-wide">Last Hour</span>
+                            <span class="text-white font-semibold text-lg" x-text="lastHour"></span>
+                        </div>
+                        <div class="w-px h-8 bg-border"></div>
+                        <div class="flex items-center gap-4">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                                <span class="text-gray-300" x-text="healthy + ' Healthy'"></span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+                                <span class="text-gray-300" x-text="warning + ' Warning'"></span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                                <span class="text-gray-300" x-text="critical + ' Critical'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Grafana iframe -->
+            <iframe class="grafana-frame-with-bar"
+                    :src="fleetUrl"
+                    title="Fleet Overview Dashboard"
+                    allowfullscreen>
+            </iframe>
+        </div>
+
+        <!-- ── Engine Deep Dive ───────────────────────────────────────── -->
+        <div x-show="isActive('engine')" class="flex flex-col flex-1 overflow-hidden">
+
+            <!-- Control bar -->
+            <div class="flex items-center gap-5 px-5 py-3 bg-panel border-b border-border flex-shrink-0">
+                <div class="flex flex-col">
+                    <label class="field-label">Dataset</label>
+                    <select class="field-input w-36" x-model="dataset">
+                        <option value="FD001">FD001</option>
+                        <option value="FD002">FD002</option>
+                        <option value="FD003">FD003</option>
+                        <option value="FD004">FD004</option>
+                    </select>
+                </div>
+                <div class="flex flex-col">
+                    <label class="field-label">Engine Unit</label>
+                    <input type="number" class="field-input w-28" x-model.number="engineUnit"
+                           min="1" max="300" placeholder="1" />
+                </div>
+                <div class="flex items-end">
+                    <span class="text-gray-500 text-xs mt-5">Dashboard updates in real-time as you type</span>
+                </div>
+            </div>
+
+            <!-- Grafana iframe -->
+            <iframe class="grafana-frame-with-bar"
+                    :src="engineUrl"
+                    title="Engine Deep Dive Dashboard"
+                    allowfullscreen>
+            </iframe>
+        </div>
+
+        <!-- ── Model Performance ──────────────────────────────────────── -->
+        <div x-show="isActive('model')" class="flex-1 overflow-hidden">
+            <iframe class="grafana-frame"
+                    :src="modelUrl"
+                    title="Model Performance Dashboard"
+                    allowfullscreen>
+            </iframe>
+        </div>
+
+        <!-- ── RUL Prediction ─────────────────────────────────────────── -->
+        <div x-show="isActive('predict')" class="flex-1 overflow-hidden flex">
+
+            <!-- Left: Manual single prediction (collapsed by default) -->
+            <div x-data="{ open: false }" class="flex-shrink-0 border-r border-border flex flex-col"
+                 :class="open ? 'w-96' : 'w-10'">
+
+                <!-- Toggle tab -->
+                <button class="h-full w-10 flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/40 transition-colors flex-shrink-0"
+                        :title="open ? 'Hide manual form' : 'Manual single prediction'"
+                        @click="open = !open">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </button>
+
+                <!-- Panel content -->
+                <div x-show="open" x-data="predictStore()" x-init="init()"
+                     class="flex-1 overflow-y-auto px-6 py-5 w-96">
+                <div class="max-w-sm">
+
+                    <h2 class="text-base font-semibold text-white mb-1">Manual Prediction</h2>
+                    <p class="text-gray-500 text-xs mb-4">Single-cycle sensor entry — for API testing / demos.</p>
+
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="field-label">Dataset Subset</label>
+                            <select class="field-input" x-model.number="subset" @change="onSubsetChange()">
+                                <option value="1">FD001</option>
+                                <option value="2">FD002</option>
+                                <option value="3">FD003</option>
+                                <option value="4">FD004</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="field-label">Engine ID</label>
+                            <input type="number" class="field-input" x-model.number="engineId" min="1" />
+                        </div>
+                        <div>
+                            <label class="field-label">Cycle</label>
+                            <input type="number" class="field-input" x-model.number="cycle" min="1" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="field-label">Setting 1</label>
+                            <input type="number" class="field-input" x-model.number="setting1" step="any" />
+                        </div>
+                        <div>
+                            <label class="field-label">Setting 2</label>
+                            <input type="number" class="field-input" x-model.number="setting2" step="any" />
+                        </div>
+                        <div>
+                            <label class="field-label">Setting 3 (%)</label>
+                            <input type="number" class="field-input" x-model.number="setting3" step="any" />
+                        </div>
+                    </div>
+
+                    <div class="bg-panel rounded-lg p-4 mb-4">
+                        <p class="text-xs text-gray-400 uppercase tracking-wide mb-3">Sensor Readings</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <template x-for="s in sensorList" :key="s">
+                                <div>
+                                    <label class="field-label" x-text="sensorLabels[s] || s"></label>
+                                    <input type="number" class="field-input" :placeholder="s" step="any" x-model="sensors[s]" />
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <button class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium text-sm transition-colors disabled:opacity-50"
+                            :disabled="loading" @click="submit()">
+                        <span x-show="!loading">Run Prediction</span>
+                        <span x-show="loading" class="flex items-center justify-center gap-2"><div class="spinner"></div> Predicting…</span>
+                    </button>
+
+                    <div x-show="error" class="mt-4 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-sm" x-text="error"></div>
+
+                    <div x-show="result" class="mt-5 bg-panel rounded-lg p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-gray-400 text-sm">Result</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="healthClass" x-text="result?.health_status"></span>
+                        </div>
+                        <div class="flex items-end gap-3 mb-4">
+                            <span class="rul-number" :style="'color:' + rulColor" x-text="result?.predicted_rul"></span>
+                            <span class="text-gray-400 text-base mb-2">cycles remaining</span>
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            Prediction ID: <span class="text-gray-300 font-mono" x-text="result?.prediction_id ?? '—'"></span>
+                        </div>
+                    </div>
+
+                </div>
+                </div><!-- panel content -->
+            </div><!-- left panel -->
+
+            <!-- Right: Batch from test data -->
+            <div class="predict-panel flex-1 px-6 py-5 overflow-y-auto" x-data="batchTestStore()" x-init="init()">
+
+                <h2 class="text-lg font-semibold text-white mb-1">Batch Prediction</h2>
+                <p class="text-gray-500 text-xs mb-4">Run predictions from real engine data — no manual sensor entry needed.</p>
+
+                <!-- ── Mode toggle ────────────────────────────────────── -->
+                <div class="flex gap-1 p-1 bg-gray-800 rounded-lg mb-4 w-fit">
+                    <button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                            :class="mode === 'fleet' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                            @click="switchMode('fleet')">
+                        Simulate Fleet
+                    </button>
+                    <button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                            :class="mode === 'history' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                            @click="switchMode('history')">
+                        Full History
+                    </button>
+                    <button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                            :class="mode === 'snapshot' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'"
+                            @click="switchMode('snapshot')">
+                        Latest Snapshot
+                    </button>
+                </div>
+
+                <!-- ── Dataset selector (shared) ─────────────────────── -->
+                <div class="flex items-end gap-3 mb-4">
+                    <div>
+                        <label class="field-label">Dataset</label>
+                        <select class="field-input w-36" x-model="dataset" @change="onDatasetChange()">
+                            <option>FD001</option>
+                            <option>FD002</option>
+                            <option>FD003</option>
+                            <option>FD004</option>
+                        </select>
+                    </div>
+                    <template x-if="mode === 'snapshot'">
+                        <div class="flex items-end gap-3">
+                            <div>
+                                <label class="field-label">Max Engines</label>
+                                <input type="number" class="field-input w-24" x-model.number="maxEngines" min="1" max="100" />
+                            </div>
+                            <button class="py-2 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors disabled:opacity-50"
+                                    :disabled="loadingEngines" @click="loadEngines()">
+                                <span x-show="!loadingEngines">Load Engines</span>
+                                <span x-show="loadingEngines" class="flex items-center gap-1"><div class="spinner"></div> Loading…</span>
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="mode !== 'snapshot'">
+                        <button class="py-2 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors disabled:opacity-50"
+                                :disabled="loadingDemo" @click="loadDemoEngines()">
+                            <span x-show="!loadingDemo">Reload Engines</span>
+                            <span x-show="loadingDemo" class="flex items-center gap-1"><div class="spinner"></div> Loading…</span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- ══ FLEET SIMULATION MODE ═══════════════════════════ -->
+                <div x-show="mode === 'fleet'">
+
+                    <div class="mb-4 p-3 bg-emerald-900/20 border border-emerald-700/40 rounded-lg text-xs text-emerald-300">
+                        Snapshots each engine at a <strong>different life stage</strong> (25% → 45% → 65% → 80% → 100%) so the Fleet Overview shows a realistic mix of
+                        <span class="text-green-400 font-medium">HEALTHY</span> /
+                        <span class="text-yellow-400 font-medium">WARNING</span> /
+                        <span class="text-red-400 font-medium">CRITICAL</span> engines.
+                    </div>
+
+                    <!-- Demo engine list with assigned life stages -->
+                    <div x-show="demoEngines.length > 0" class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-400 text-xs uppercase tracking-wide">Demo engines — life stages auto-assigned</span>
+                            <button class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+                                    @click="toggleDemoAll()"
+                                    x-text="demoAllSelected ? 'Deselect All' : 'Select All'"></button>
+                        </div>
+                        <div class="bg-panel rounded-lg p-2 space-y-1">
+                            <template x-for="(e, i) in demoEngines" :key="e.unit_number">
+                                <label class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-700"
+                                       :class="e.selected ? 'bg-emerald-900/30 text-emerald-300' : 'text-gray-400'">
+                                    <input type="checkbox" class="accent-emerald-500" x-model="e.selected" />
+                                    <span class="text-sm font-medium" x-text="'Engine ' + e.unit_number"></span>
+                                    <span class="text-xs text-gray-500" x-text="'max ' + e.max_cycle + ' cycles'"></span>
+                                    <span class="ml-auto text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-300"
+                                          x-text="['25%','45%','65%','80%','100%'][i] + ' of life'"></span>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+
+                    <button class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 mb-4"
+                            :disabled="simulatingFleet || demoEngines.length === 0"
+                            @click="simulateFleet()">
+                        <span x-show="!simulatingFleet">
+                            Simulate Fleet — <span x-text="demoSelectedCount > 0 ? demoSelectedCount + ' engine(s)' : 'all ' + demoEngines.length + ' engines'"></span>
+                        </span>
+                        <span x-show="simulatingFleet" class="flex items-center justify-center gap-2">
+                            <div class="spinner"></div> Simulating…
+                        </span>
+                    </button>
+
+                    <div x-show="fleetError" class="mb-3 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-xs" x-text="fleetError"></div>
+
+                    <!-- Fleet result cards -->
+                    <div x-show="fleetResult" class="space-y-3">
+                        <p class="text-gray-400 text-xs uppercase tracking-wide">Fleet snapshot — check Grafana dashboards for live updates</p>
+                        <div class="grid gap-2">
+                            <template x-for="e in fleetResult?.engines" :key="e.unit_number">
+                                <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg border"
+                                     :class="healthBadge(e.health_status)">
+                                    <div class="flex-1">
+                                        <span class="text-sm font-medium" x-text="'Engine ' + e.unit_number"></span>
+                                        <span class="ml-2 text-xs opacity-70"
+                                              x-text="'cycle ' + e.snapshot_cycle + '/' + e.max_cycle + ' (' + e.snapshot_pct + '% of life)'"></span>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="font-mono font-bold text-lg" x-text="e.predicted_rul?.toFixed(0)"></span>
+                                        <span class="text-xs opacity-60 ml-1">cycles RUL</span>
+                                    </div>
+                                    <span class="text-xs font-semibold w-16 text-right" x-text="e.health_status"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                </div><!-- /fleet mode -->
+
+                <!-- ══ SNAPSHOT MODE ═══════════════════════════════════ -->
+                <div x-show="mode === 'snapshot'">
+
+                    <!-- Engine list -->
+                    <div x-show="hasEngines" class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-400 text-xs uppercase tracking-wide"
+                                  x-text="engines.length + ' engines available — ' + selectedCount + ' selected'"></span>
+                            <div class="flex gap-2">
+                                <button class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+                                        @click="toggleAll()"
+                                        x-text="allSelected ? 'Deselect All' : 'Select All'"></button>
+                                <button class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+                                        @click="selectRandom()">
+                                    Random <span x-text="maxEngines"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="bg-panel rounded-lg p-2 max-h-48 overflow-y-auto grid grid-cols-4 gap-1">
+                            <template x-for="e in engines" :key="e.unit_number">
+                                <label class="flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer hover:bg-gray-700 text-xs"
+                                       :class="e.selected ? 'bg-blue-900/40 text-blue-300' : 'text-gray-400'">
+                                    <input type="checkbox" class="accent-blue-500" x-model="e.selected" />
+                                    <span x-text="'E' + e.unit_number"></span>
+                                    <span class="text-gray-600" x-text="'c' + e.last_cycle"></span>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+
+                    <button class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 mb-4"
+                            :disabled="running || (!hasEngines && selectedCount === 0)"
+                            @click="runPredictions()">
+                        <span x-show="!running">
+                            Run <span x-text="selectedCount > 0 ? selectedCount : maxEngines"></span> Predictions
+                        </span>
+                        <span x-show="running" class="flex items-center justify-center gap-2">
+                            <div class="spinner"></div> Running…
+                        </span>
+                    </button>
+
+                    <div x-show="error" class="mb-3 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-xs" x-text="error"></div>
+
+                    <div x-show="results.length > 0">
+                        <p class="text-gray-400 text-xs uppercase tracking-wide mb-2"
+                           x-text="results.length + ' predictions completed'"></p>
+                        <div class="bg-panel rounded-lg overflow-hidden">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-border text-gray-500 text-xs uppercase">
+                                        <th class="text-left px-3 py-2">Engine</th>
+                                        <th class="text-left px-3 py-2">Dataset</th>
+                                        <th class="text-right px-3 py-2">RUL</th>
+                                        <th class="text-left px-3 py-2">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="r in results" :key="r.prediction_id">
+                                        <tr class="border-b border-border/50 hover:bg-gray-800/40">
+                                            <td class="px-3 py-1.5 text-gray-300" x-text="r.engine_id"></td>
+                                            <td class="px-3 py-1.5 text-gray-400 text-xs" x-text="r.subset"></td>
+                                            <td class="px-3 py-1.5 text-right font-mono font-semibold" x-text="r.predicted_rul?.toFixed(1)"></td>
+                                            <td class="px-3 py-1.5 text-xs font-medium" :class="healthClass(r.health_status)" x-text="r.health_status"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div><!-- /snapshot mode -->
+
+                <!-- ══ HISTORY MODE ════════════════════════════════════ -->
+                <div x-show="mode === 'history'">
+
+                    <!-- Info banner -->
+                    <div class="mb-4 p-3 bg-purple-900/20 border border-purple-700/40 rounded-lg text-xs text-purple-300">
+                        Sends <strong>every cycle</strong> of run-to-failure training data with synthetic timestamps (1 cycle = 1 hour back).
+                        After running, open the <strong>Engine Deep Dive</strong> dashboard in Grafana to see the full degradation curve.
+                    </div>
+
+                    <!-- Demo engine list -->
+                    <div x-show="demoEngines.length > 0" class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-400 text-xs uppercase tracking-wide"
+                                  x-text="demoEngines.length + ' demo engines — ' + demoSelectedCount + ' selected (0 = all)'"></span>
+                            <button class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+                                    @click="toggleDemoAll()"
+                                    x-text="demoAllSelected ? 'Deselect All' : 'Select All'"></button>
+                        </div>
+                        <div class="bg-panel rounded-lg p-2 grid grid-cols-1 gap-1">
+                            <template x-for="e in demoEngines" :key="e.unit_number">
+                                <label class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-700"
+                                       :class="e.selected ? 'bg-purple-900/40 text-purple-300' : 'text-gray-400'">
+                                    <input type="checkbox" class="accent-purple-500" x-model="e.selected" />
+                                    <span class="text-sm" x-text="'Engine ' + e.unit_number"></span>
+                                    <span class="ml-auto text-xs text-gray-500"
+                                          x-text="e.total_cycles + ' cycles  (~' + e.max_cycle + 'h of history)'"></span>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Run history button -->
+                    <button class="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 mb-4"
+                            :disabled="runningHistory || demoEngines.length === 0"
+                            @click="runHistory()">
+                        <span x-show="!runningHistory">
+                            Run History for <span x-text="demoSelectedCount > 0 ? demoSelectedCount + ' engine(s)' : 'all ' + demoEngines.length + ' engines'"></span>
+                        </span>
+                        <span x-show="runningHistory" class="flex items-center justify-center gap-2">
+                            <div class="spinner"></div> Inserting predictions… (may take 30–60s)
+                        </span>
+                    </button>
+
+                    <div x-show="historyError" class="mb-3 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-xs" x-text="historyError"></div>
+
+                    <!-- History result summary -->
+                    <div x-show="historyResult" class="space-y-3">
+                        <div class="p-4 bg-green-900/20 border border-green-700/40 rounded-lg">
+                            <p class="text-green-300 text-sm font-semibold mb-1">History loaded successfully</p>
+                            <div class="grid grid-cols-3 gap-3 mt-2">
+                                <div class="text-center">
+                                    <p class="text-2xl font-bold text-white" x-text="historyResult?.total_predictions"></p>
+                                    <p class="text-gray-400 text-xs">Predictions saved</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-2xl font-bold text-white" x-text="historyResult?.engines_processed"></p>
+                                    <p class="text-gray-400 text-xs">Engines</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-2xl font-bold text-white" x-text="historyResult?.time_span_hours + 'h'"></p>
+                                    <p class="text-gray-400 text-xs">Time span</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Per-engine final RUL -->
+                        <div class="bg-panel rounded-lg overflow-hidden">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-border text-gray-500 text-xs uppercase">
+                                        <th class="text-left px-3 py-2">Engine</th>
+                                        <th class="text-right px-3 py-2">Cycles</th>
+                                        <th class="text-right px-3 py-2">Final RUL</th>
+                                        <th class="text-left px-3 py-2">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="e in historyResult?.engines" :key="e.unit_number">
+                                        <tr class="border-b border-border/50 hover:bg-gray-800/40">
+                                            <td class="px-3 py-1.5 text-gray-300" x-text="'Engine ' + e.unit_number"></td>
+                                            <td class="px-3 py-1.5 text-right text-gray-400" x-text="e.total_cycles"></td>
+                                            <td class="px-3 py-1.5 text-right font-mono font-semibold" x-text="e.final_rul?.toFixed(1)"></td>
+                                            <td class="px-3 py-1.5 text-xs font-medium" :class="healthClass(e.health_status)" x-text="e.health_status"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-gray-500 text-xs">Open Engine Deep Dive in Grafana and select one of the engines above to see the degradation curve.</p>
+                    </div>
+
+                </div><!-- /history mode -->
+
+            </div><!-- right panel -->
+
+        </div><!-- predict tab -->
+
+        <!-- ── Admin ──────────────────────────────────────────────────── -->
+        <div x-show="isActive('admin')" class="flex-1 overflow-y-auto p-8"
+             x-data="{
+                seeding: false, seedResult: null, seedError: null,
+                flushing: false, flushResult: null, flushError: null,
+                async seed(force) {
+                    this.seeding = true; this.seedResult = null; this.seedError = null;
+                    try {
+                        const res = await fetch('/admin/seed?force=' + (force ? 'true' : 'false'), { method: 'POST' });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.detail || 'HTTP ' + res.status);
+                        this.seedResult = d;
+                    } catch(e) { this.seedError = e.message; }
+                    finally { this.seeding = false; }
+                },
+                async flush() {
+                    if (!confirm('Wipe ALL predictions, sensor readings and engines? This cannot be undone.')) return;
+                    this.flushing = true; this.flushResult = null; this.flushError = null;
+                    try {
+                        const res = await fetch('/admin/flush', { method: 'POST' });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.detail || 'HTTP ' + res.status);
+                        this.flushResult = d;
+                    } catch(e) { this.flushError = e.message; }
+                    finally { this.flushing = false; }
+                }
+             }">
+
+            <div class="max-w-xl space-y-6">
+
+                <div>
+                    <h2 class="text-lg font-semibold text-white mb-1">Admin</h2>
+                    <p class="text-gray-500 text-xs">Database management for demo and testing.</p>
+                </div>
+
+                <!-- ── Seed ───────────────────────────────────────────── -->
+                <div class="bg-panel rounded-xl p-5 border border-border">
+                    <h3 class="text-sm font-semibold text-white mb-1">Seed Demo Data</h3>
+                    <p class="text-gray-500 text-xs mb-4">
+                        Populates the DB with fleet snapshots (all 4 datasets) and one engine degradation history
+                        per dataset — enough to activate every Grafana panel. Skipped automatically if data already exists.
+                    </p>
+                    <div class="flex gap-3">
+                        <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                :disabled="seeding" @click="seed(false)">
+                            <span x-show="!seeding">Seed (skip if exists)</span>
+                            <span x-show="seeding" class="flex items-center gap-2"><div class="spinner"></div> Seeding…</span>
+                        </button>
+                        <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                :disabled="seeding" @click="seed(true)">
+                            Force Re-seed
+                        </button>
+                    </div>
+                    <div x-show="seedError" class="mt-3 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-xs" x-text="seedError"></div>
+                    <div x-show="seedResult" class="mt-3 p-3 bg-gray-800 rounded-lg text-xs space-y-1">
+                        <p class="font-medium" :class="seedResult?.status === 'seeded' ? 'text-green-400' : 'text-yellow-400'"
+                           x-text="seedResult?.status === 'seeded' ? 'Seeded successfully' : seedResult?.reason"></p>
+                        <template x-if="seedResult?.status === 'seeded'">
+                            <div class="space-y-1 text-gray-400 mt-1">
+                                <template x-for="s in seedResult.summary.fleet_snapshots" :key="s.dataset">
+                                    <p x-text="s.dataset + ': ' + s.engines + ' engines (' + s.statuses.join(', ') + ')'"></p>
+                                </template>
+                                <template x-for="h in seedResult.summary.histories" :key="h.dataset">
+                                    <p x-text="h.dataset + ' history: ' + h.total_predictions + ' predictions over ' + h.time_span_hours + 'h'"></p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- ── Flush ──────────────────────────────────────────── -->
+                <div class="bg-panel rounded-xl p-5 border border-red-900/40">
+                    <h3 class="text-sm font-semibold text-white mb-1">Flush All Data</h3>
+                    <p class="text-gray-500 text-xs mb-4">
+                        Wipes all engines, sensor readings, predictions and errors — resets sequences.
+                        Use before re-seeding for a completely clean slate.
+                    </p>
+                    <button class="px-4 py-2 bg-red-700 hover:bg-red-800 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            :disabled="flushing" @click="flush()">
+                        <span x-show="!flushing">Flush Database</span>
+                        <span x-show="flushing" class="flex items-center gap-2"><div class="spinner"></div> Flushing…</span>
+                    </button>
+                    <div x-show="flushError" class="mt-3 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-xs" x-text="flushError"></div>
+                    <div x-show="flushResult" class="mt-3 p-2 bg-green-900/20 border border-green-700/40 rounded-lg text-green-400 text-xs">
+                        Database flushed. All tables are empty.
+                    </div>
+                </div>
+
+            </div>
+        </div><!-- admin tab -->
+
+    </main>
+</div>
+
+</body>
+</html>
