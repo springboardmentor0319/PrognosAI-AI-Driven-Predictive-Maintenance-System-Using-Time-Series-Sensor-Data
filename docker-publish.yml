@@ -1,0 +1,56 @@
+name: Build & Push Docker Images
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout code ──────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Log in to Docker Hub ───────────────────────────────────────────
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ── 3. Set up Docker Buildx (faster builds + multi-platform support) ──
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── 4. Build & push rul-api ───────────────────────────────────────────
+      - name: Build and push rul-api
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/rul-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/rul-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── 5. Build & push grafana-init ──────────────────────────────────────
+      - name: Build and push grafana-init
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.grafana-init
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/grafana-init:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/grafana-init:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
