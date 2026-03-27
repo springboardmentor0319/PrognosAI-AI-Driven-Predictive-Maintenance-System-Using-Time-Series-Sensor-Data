@@ -1,0 +1,189 @@
+{
+  "__inputs": [{ "name": "DS_POSTGRESQL", "label": "PostgreSQL", "type": "datasource", "pluginId": "postgres", "pluginName": "PostgreSQL" }],
+  "__requires": [{ "type": "datasource", "id": "postgres", "name": "PostgreSQL", "version": "1.0.0" }],
+  "title": "Model Performance — RUL Prediction Accuracy",
+  "description": "XGBoost model accuracy tracking. Requires ground-truth data via POST /ground-truth or bulk_predict.py --with-ground-truth.",
+  "tags": ["prognosai", "model", "accuracy", "ml"],
+  "timezone": "browser", "refresh": "5m", "schemaVersion": 38, "version": 1,
+  "uid": "prognosai-model-v2",
+  "time": { "from": "now-7d", "to": "now" },
+
+  "templating": {
+    "list": [
+      {
+        "name": "dataset", "label": "Dataset", "type": "query",
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "query": "SELECT CONCAT('FD00', subset) FROM model_registry WHERE is_active = TRUE ORDER BY subset",
+        "refresh": 1, "sort": 1, "includeAll": true, "allValue": ".*", "multi": true, "current": {}
+      }
+    ]
+  },
+
+  "panels": [
+
+    {
+      "id": 1, "type": "text", "title": "",
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "options": { "mode": "markdown", "content": "## 🤖 XGBoost RUL Model — Performance Tracking\n**NASA Score** is the primary metric (lower = better). Late predictions are penalised more than early ones — reflecting the real cost of an unexpected engine failure.\n\n> Accuracy panels require ground-truth data. Run: `python bulk_predict.py --subset all --with-ground-truth`" }
+    },
+
+    {
+      "id": 2, "type": "stat", "title": "Total Predictions (All Time)",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 2 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "unit": "none" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT COUNT(*) AS \"Total Predictions\" FROM predictions",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 3, "type": "stat", "title": "Evaluated With Ground Truth",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 2 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "teal" }, "unit": "none" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT COUNT(*) AS \"Evaluated\" FROM prediction_errors",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 4, "type": "stat", "title": "Overall RMSE",
+      "description": "Root Mean Squared Error — lower is better",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 2 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 2, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 35 }] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT ROUND(SQRT(AVG(abs_error * abs_error))::numeric, 2) AS \"RMSE\" FROM prediction_errors",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 5, "type": "stat", "title": "Overall MAE",
+      "description": "Mean Absolute Error in cycles",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 2 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 2, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 15 }, { "color": "red", "value": 25 }] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT ROUND(AVG(abs_error)::numeric, 2) AS \"MAE\" FROM prediction_errors",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 6, "type": "stat", "title": "NASA Score",
+      "description": "Asymmetric score — late predictions penalised more. Lower = better. 0 = perfect.",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 2 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 1, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 500 }, { "color": "red", "value": 2000 }] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT ROUND(SUM(nasa_penalty)::numeric, 1) AS \"NASA Score\" FROM prediction_errors",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 7, "type": "stat", "title": "% Predictions On Time",
+      "description": "Predictions within ±10 cycles of true RUL",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 2 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 40 }, { "color": "green", "value": 60 }] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT ROUND(100.0 * SUM(CASE WHEN ABS(error) <= 10 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS \"% On Time\" FROM prediction_errors",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 8, "type": "table", "title": "Training Benchmarks — Per Dataset",
+      "description": "Metrics recorded during train.py. Fixed reference values.",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "center" } }, "overrides": [
+        { "matcher": { "id": "byName", "options": "train_rmse" },       "properties": [{ "id": "displayName", "value": "Train RMSE" }, { "id": "decimals", "value": 2 }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 35 }] } }] },
+        { "matcher": { "id": "byName", "options": "train_mae" },        "properties": [{ "id": "displayName", "value": "Train MAE" },  { "id": "decimals", "value": 2 }] },
+        { "matcher": { "id": "byName", "options": "train_r2" },         "properties": [{ "id": "displayName", "value": "R²" },         { "id": "decimals", "value": 4 }] },
+        { "matcher": { "id": "byName", "options": "train_nasa_score" }, "properties": [{ "id": "displayName", "value": "NASA Score" }, { "id": "decimals", "value": 1 }] },
+        { "matcher": { "id": "byName", "options": "dataset" },          "properties": [{ "id": "displayName", "value": "Dataset" },    { "id": "custom.width", "value": 85 }] },
+        { "matcher": { "id": "byName", "options": "model_version" },    "properties": [{ "id": "displayName", "value": "Version" },    { "id": "custom.width", "value": 80 }] },
+        { "matcher": { "id": "byName", "options": "algorithm" },        "properties": [{ "id": "displayName", "value": "Algorithm" },  { "id": "custom.width", "value": 90 }] },
+        { "matcher": { "id": "byName", "options": "trained_at" },       "properties": [{ "id": "displayName", "value": "Trained At" }, { "id": "custom.width", "value": 160 }] }
+      ]},
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT CONCAT('FD00', subset) AS dataset, model_version, algorithm, train_rmse, train_mae, train_r2, train_nasa_score, trained_at FROM model_registry WHERE is_active = TRUE ORDER BY subset",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 9, "type": "table", "title": "Live Accuracy — Per Dataset (Ground Truth Evaluated)",
+      "description": "Accuracy from POST /ground-truth submissions. Run bulk_predict.py --with-ground-truth to populate.",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "center" } }, "overrides": [
+        { "matcher": { "id": "byName", "options": "live_rmse" },    "properties": [{ "id": "displayName", "value": "Live RMSE" },    { "id": "decimals", "value": 2 }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 20 }, { "color": "red", "value": 35 }] } }] },
+        { "matcher": { "id": "byName", "options": "live_mae" },     "properties": [{ "id": "displayName", "value": "Live MAE" },     { "id": "decimals", "value": 2 }] },
+        { "matcher": { "id": "byName", "options": "nasa_score" },   "properties": [{ "id": "displayName", "value": "NASA Score" },   { "id": "decimals", "value": 1 }] },
+        { "matcher": { "id": "byName", "options": "n_evaluated" },  "properties": [{ "id": "displayName", "value": "Sample Size" }] },
+        { "matcher": { "id": "byName", "options": "dataset" },      "properties": [{ "id": "displayName", "value": "Dataset" },      { "id": "custom.width", "value": 90 }] }
+      ]},
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT CONCAT('FD00', e.subset) AS dataset, COUNT(*) AS n_evaluated, ROUND(SQRT(AVG(pe.abs_error * pe.abs_error))::numeric, 2) AS live_rmse, ROUND(AVG(pe.abs_error)::numeric, 2) AS live_mae, ROUND(SUM(pe.nasa_penalty)::numeric, 1) AS nasa_score FROM prediction_errors pe JOIN predictions p ON p.prediction_id = pe.prediction_id JOIN engines e ON e.engine_id = p.engine_id GROUP BY e.subset ORDER BY e.subset",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 10, "type": "timeseries", "title": "RMSE Over Time — Model Drift Detection",
+      "description": "Hourly RMSE per dataset. Rising trend = model drift — consider retraining.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 8 }, "unit": "none" } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT DATE_TRUNC('hour', pe.submitted_at) AS time, CONCAT('FD00', e.subset) AS metric, ROUND(SQRT(AVG(pe.abs_error * pe.abs_error))::numeric, 2) AS value FROM prediction_errors pe JOIN predictions p ON p.prediction_id = pe.prediction_id JOIN engines e ON e.engine_id = p.engine_id WHERE $__timeFilter(pe.submitted_at) GROUP BY DATE_TRUNC('hour', pe.submitted_at), e.subset ORDER BY time",
+        "format": "time_series", "refId": "A" }]
+    },
+
+    {
+      "id": 11, "type": "timeseries", "title": "NASA Score Over Time",
+      "description": "Hourly NASA score per dataset. Spikes = batch of late predictions.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 8 }, "unit": "none" } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT DATE_TRUNC('hour', pe.submitted_at) AS time, CONCAT('FD00', e.subset) AS metric, ROUND(SUM(pe.nasa_penalty)::numeric, 1) AS value FROM prediction_errors pe JOIN predictions p ON p.prediction_id = pe.prediction_id JOIN engines e ON e.engine_id = p.engine_id WHERE $__timeFilter(pe.submitted_at) GROUP BY DATE_TRUNC('hour', pe.submitted_at), e.subset ORDER BY time",
+        "format": "time_series", "refId": "A" }]
+    },
+
+    {
+      "id": 12, "type": "barchart", "title": "Prediction Error Breakdown — Late vs Early vs On Time",
+      "description": "Late = predicted MORE life than actual (safety risk). Early = predicted less (maintenance cost). On Time = within ±10 cycles.",
+      "gridPos": { "h": 8, "w": 10, "x": 0, "y": 20 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [
+        { "matcher": { "id": "byName", "options": "Late (>+10 cycles)" },  "properties": [{ "id": "color", "value": { "fixedColor": "#E02F44", "mode": "fixed" } }] },
+        { "matcher": { "id": "byName", "options": "On Time (±10 cycles)" },"properties": [{ "id": "color", "value": { "fixedColor": "#37872D", "mode": "fixed" } }] },
+        { "matcher": { "id": "byName", "options": "Early (<-10 cycles)" }, "properties": [{ "id": "color", "value": { "fixedColor": "#FF9830", "mode": "fixed" } }] }
+      ]},
+      "options": { "orientation": "horizontal", "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" }, "xField": "dataset" },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT CONCAT('FD00', e.subset) AS dataset, SUM(CASE WHEN pe.error > 10  THEN 1 ELSE 0 END) AS \"Late (>+10 cycles)\", SUM(CASE WHEN ABS(pe.error) <= 10 THEN 1 ELSE 0 END) AS \"On Time (±10 cycles)\", SUM(CASE WHEN pe.error < -10 THEN 1 ELSE 0 END) AS \"Early (<-10 cycles)\" FROM prediction_errors pe JOIN predictions p ON p.prediction_id = pe.prediction_id JOIN engines e ON e.engine_id = p.engine_id GROUP BY e.subset ORDER BY e.subset",
+        "format": "table", "refId": "A" }]
+    },
+
+    {
+      "id": 13, "type": "histogram", "title": "Error Distribution — (Predicted − True RUL)",
+      "description": "Ideal: centred near 0, slightly left (early bias is safer than late).",
+      "gridPos": { "h": 8, "w": 14, "x": 10, "y": 20 },
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "custom": { "fillOpacity": 80, "lineWidth": 0 } } },
+      "options": { "bucketSize": "auto", "fillOpacity": 80, "legend": { "displayMode": "hidden" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRESQL}" },
+        "rawSql": "SELECT pe.error AS \"Prediction Error (cycles)\" FROM prediction_errors pe JOIN predictions p ON p.prediction_id = pe.prediction_id JOIN engines e ON e.engine_id = p.engine_id",
+        "format": "table", "refId": "A" }]
+    }
+  ]
+}
