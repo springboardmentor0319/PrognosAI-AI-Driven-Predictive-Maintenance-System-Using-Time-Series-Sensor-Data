@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Only the requests library needed — no ML deps
+RUN pip install --no-cache-dir requests==2.32.3
+
+COPY docker/grafana_init.py     ./grafana_init.py
+COPY grafana_dashboard/         ./grafana_dashboard/
+
+CMD ["python", "grafana_init.py"]

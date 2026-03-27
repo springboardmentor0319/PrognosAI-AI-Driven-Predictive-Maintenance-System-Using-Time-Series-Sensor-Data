@@ -1,0 +1,46 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+scripts/.env
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# Keep Dockerfile, docker-compose.yml, .dockerignore — they belong in git
+# Ignore local override files
+docker-compose.override.yml
+
+# ── Training data (large files — not needed in repo) ──────────────────────────
+scripts/data/*.txt
+scripts/data/*.pdf
+
+# ── Model artifacts ───────────────────────────────────────────────────────────
+# Keep .json and .pkl — they are the trained models needed for Docker
+# Uncomment below if you prefer to exclude and pull from storage instead:
+# scripts/models/
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+
+.claude
